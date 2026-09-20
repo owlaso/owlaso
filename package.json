@@ -1,0 +1,96 @@
+{
+  "name": "owlaso",
+  "version": "1.6.0-beta.1",
+  "private": true,
+  "type": "module",
+  "description": "OwlASO — desktop app for ASO keyword analysis and app store review monitoring.",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "electron": "electron .",
+    "electron:dev": "electron .",
+    "test": "node --test test/*.test.js",
+    "smoke:mock": "node test/smoke-mock.js",
+    "smoke:live": "node test/smoke-live.js",
+    "pack": "electron-builder --dir",
+    "prepack": "npx electron scripts/make-icon.cjs",
+    "dist": "electron-builder",
+    "predist:win": "npx electron scripts/make-icon.cjs",
+    "predist:mac": "npx electron scripts/make-icon.cjs",
+    "predist:linux": "npx electron scripts/make-icon.cjs",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "google-play-scraper": "10.1.2"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.owlaso.app",
+    "productName": "OwlASO",
+    "copyright": "Copyright © 2026 OwlASO",
+    "icon": "build/icon.png",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "darkModeSupport": true
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OwlASO"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

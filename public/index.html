@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OwlASO</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script>var s=localStorage.getItem('theme');if(!s){s=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.className='electron'+(' '+(s||'light'))</script>
+</head>
+<body>
+  <div class="app-canvas">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-inner">
+          <svg class="sidebar-logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <polygon points="13,15 10,6 18,13" fill="var(--accent)"/>
+            <polygon points="27,15 30,6 22,13" fill="var(--accent)"/>
+            <circle cx="20" cy="23" r="13" fill="none" stroke="var(--accent)" stroke-width="2"/>
+            <circle cx="14.5" cy="21" r="3.5" fill="var(--accent)"/>
+            <circle cx="25.5" cy="21" r="3.5" fill="var(--accent)"/>
+          </svg>
+          <div class="sidebar-brand-title">OwlASO</div>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 3h10M2 7h10M2 11h10"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- ── Saved Apps ──────────────────────── -->
+      <section class="sidebar-section folders" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+        <div class="sidebar-section-header">
+          <span class="section-label">My Apps</span>
+          <button class="nav-icon sidebar-hdr-btn" id="createFolderBtn" title="New folder">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 3A1.5 1.5 0 000 4.5v7A1.5 1.5 0 001.5 13h13a1.5 1.5 0 001.5-1.5v-7A1.5 1.5 0 0014.5 3H8.621a1.5 1.5 0 01-1.06-.44L6.44 1.44A1.5 1.5 0 005.378 1H1.5z"/><path fill="var(--surface)" d="M7.5 8h1v1.5H10v1H8.5V12h-1v-1.5H6v-1h1.5V8z"/></svg>
+          </button>
+          <button class="nav-icon sidebar-hdr-btn" id="addAppBtn2" title="Add app" style="font-size:15px;font-weight:300;line-height:1">+</button>
+        </div>
+        <div id="folderTree" class="folder-tree" style="flex:1;overflow-y:auto;padding:2px 4px 6px"></div>
+      </section>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-meta" id="footerMeta">No apps tracked</div>
+        <button class="sidebar-settings-btn" id="settingsBtn" title="Settings">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="10" cy="10" r="3"/>
+            <path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.22 4.22l1.06 1.06M14.72 14.72l1.06 1.06M4.22 15.78l1.06-1.06M14.72 5.28l1.06-1.06"/>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <!-- ── Toolbar ────────────────────────────── -->
+      <header class="toolbar">
+        <div class="toolbar-left">
+          <div class="tb-search-group">
+            <input class="tb-search" id="asoSearchInput" type="text" placeholder="ASO keyword search…" autocomplete="off">
+            <button class="tb-search-btn" id="asoSearchBtn" title="Analyze keyword">
+              <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
+            </button>
+          </div>
+          <div class="tb-search-group">
+            <input class="tb-search" id="commentSearchInput" type="text" placeholder="Select an app first…" autocomplete="off" disabled>
+            <button class="tb-search-btn" id="commentSearchBtn" title="Search reviews" disabled>
+              <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
+            </button>
+          </div>
+          <span class="review-app-label hidden" id="reviewAppLabel">for: <strong id="reviewAppName"></strong></span>
+        </div>
+        <div class="toolbar-right">
+          <select class="tb-select" id="storeFilter" title="App Store filter">
+            <option value="both">All stores</option>
+            <option value="google">Google Play</option>
+            <option value="apple">App Store</option>
+          </select>
+          <span class="tb-sep"></span>
+          <select class="tb-select" id="starMin" title="Minimum stars">
+            <option value="">Min★</option>
+            <option value="1">1★</option>
+            <option value="2">2★</option>
+            <option value="3">3★</option>
+            <option value="4">4★</option>
+            <option value="5">5★</option>
+          </select>
+          <span class="tb-sep">–</span>
+          <select class="tb-select" id="starMax" title="Maximum stars">
+            <option value="">Max★</option>
+            <option value="1">1★</option>
+            <option value="2">2★</option>
+            <option value="3">3★</option>
+            <option value="4">4★</option>
+            <option value="5">5★</option>
+          </select>
+          <span class="tb-sep"></span>
+          <select class="tb-select" id="maxReviews" title="Maximum reviews to fetch">
+            <option value="250">250</option>
+            <option value="500">500</option>
+            <option value="1000">1K</option>
+            <option value="2000">2K</option>
+            <option value="5000">5K</option>
+          </select>
+          <span class="tb-sep"></span>
+          <!-- Custom country picker -->
+          <div class="custom-select-wrap" id="countryWrap">
+            <button class="country-btn" id="countryBtn" title="Country">
+              <span class="flag-emoji" id="countryFlag"></span>
+              <span class="country-code" id="countryCode">US</span>
+            </button>
+            <div class="country-dropdown" id="countryDropdown"></div>
+          </div>
+          <!-- Custom language picker -->
+          <div class="custom-select-wrap" id="langWrap">
+            <button class="country-btn" id="langBtn" title="Language">
+              <span class="flag-emoji" id="langFlag"></span>
+              <span class="country-code" id="langCode">All</span>
+            </button>
+            <div class="country-dropdown" id="langDropdown"></div>
+          </div>
+          <span class="tb-sep"></span>
+          <button class="pill-btn" id="exportBtn" title="Export (Ctrl+E)">Export</button>
+          <span class="tb-sep"></span>
+          <button class="pill-btn pill-accent" id="fullDataBtn" title="Fetch all reviews across stores & languages">Full data</button>
+        </div>
+      </header>
+
+      <!-- ── Similar keywords bar ── -->
+      <div class="similar-bar hidden" id="similarBar"></div>
+
+      <!-- ── Review summary (fetch progress / result counts) ── -->
+      <div class="review-summary hidden" id="reviewSummary"></div>
+
+      <!-- ── Table ───────────────────────────────── -->
+      <div class="table-wrap" id="tableContainer">
+        <table class="kw-table" id="keywordTable">
+          <thead id="kwTableHead">
+            <tr>
+              <th class="kw-th kw-col-keyword">Keyword / Topic</th>
+              <th class="kw-th kw-col-updated">Last Updated</th>
+              <th class="kw-th kw-col-pop">Popularity</th>
+              <th class="kw-th kw-col-diff">Difficulty</th>
+              <th class="kw-th kw-col-pos">Position</th>
+              <th class="kw-th kw-col-apps">Apps in Ranking</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">🔎</div>
+          <div class="empty-title">Search for a keyword</div>
+          <div class="empty-desc">Type an ASO keyword above to analyze ranking apps and metrics, or search reviews by topic.</div>
+        </div>
+        <div class="loading-state hidden" id="loadingState">
+          <div class="spinner"></div>
+          <div>Analyzing…</div>
+        </div>
+        <div class="error-state hidden" id="errorState">
+          <div id="errorMessage">An error occurred.</div>
+        </div>
+      </div>
+
+      <!-- ── Keyword Detail Modal (center overlay) ── -->
+      <div class="modal-overlay hidden" id="detailOverlay">
+        <div class="modal modal-wide" id="detailPanel">
+          <div class="modal-header">
+            <div class="modal-title" id="detailTitle"></div>
+            <button class="detail-close" id="detailClose" title="Close">&times;</button>
+          </div>
+          <div class="modal-body" id="detailBody"></div>
+        </div>
+      </div>
+      <!-- ── Full Data Panel ─────────────────────── -->
+      <div class="full-data-panel hidden" id="fullDataPanel">
+        <div class="full-data-header" id="fullDataHeader"></div>
+        <div class="full-data-stores" id="fullDataStores"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ── Add App Modal ──────────────────────── -->
+  <div class="modal-overlay hidden" id="addAppModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Add App to Track</div>
+        <button class="detail-close" id="closeAddAppModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-search-row">
+          <input class="modal-search-input" id="modalSearchInput" placeholder="Search apps…" type="text" autocomplete="off" style="flex:1;height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:13px;font-family:var(--font);outline:none">
+          <select class="tb-select" id="modalPlatform">
+            <option value="both">All stores</option>
+            <option value="google">Google Play</option>
+            <option value="apple">App Store</option>
+          </select>
+        </div>
+        <div class="modal-results" id="modalResults">
+          <div class="modal-empty">Search for an app to add it to your tracking list.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── All Apps for Keyword Modal ─────────── -->
+  <div class="modal-overlay hidden" id="keywordAppsModal">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <div class="modal-title" id="kwModalTitle"></div>
+        <button class="detail-close" id="closeKwAppsModal">&times;</button>
+      </div>
+      <div class="modal-body" id="kwModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ── App Detail Modal ───────────────────── -->
+  <div class="modal-overlay hidden" id="appDetailModal">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <div class="modal-title" id="appDetailTitle"></div>
+        <button class="detail-close" id="closeAppDetailModal">&times;</button>
+      </div>
+      <div class="modal-body" id="appDetailBody"></div>
+    </div>
+  </div>
+
+  <!-- ── Review Detail Modal ────────────────── -->
+  <div class="modal-overlay hidden" id="reviewModal">
+    <div class="modal modal-review">
+      <div class="modal-header">
+        <div class="modal-title" id="reviewModalTitle">Review</div>
+        <button class="detail-close" id="closeReviewModal">&times;</button>
+      </div>
+      <div class="modal-body" id="reviewModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ── First-time Onboarding ─────────────── -->
+  <div class="onboarding-overlay hidden" id="onboardingOverlay">
+    <div class="onboarding-card">
+      <svg class="onboarding-logo" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="owlGrad" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#818cf8"/>
+            <stop offset="100%" stop-color="#6366f1"/>
+          </linearGradient>
+        </defs>
+        <rect width="80" height="80" rx="18" fill="url(#owlGrad)"/>
+        <polygon points="25,33 21,20 32,30" fill="white" opacity="0.92"/>
+        <polygon points="55,33 59,20 48,30" fill="white" opacity="0.92"/>
+        <circle cx="40" cy="46" r="22" fill="none" stroke="white" stroke-width="2.5" opacity="0.88"/>
+        <circle cx="29" cy="43" r="6.5" fill="white" opacity="0.22"/>
+        <circle cx="29" cy="43" r="6.5" fill="none" stroke="white" stroke-width="2"/>
+        <circle cx="51" cy="43" r="6.5" fill="white" opacity="0.22"/>
+        <circle cx="51" cy="43" r="6.5" fill="none" stroke="white" stroke-width="2"/>
+        <circle cx="29" cy="43" r="3" fill="white"/>
+        <circle cx="51" cy="43" r="3" fill="white"/>
+        <polygon points="37.5,52 40,56.5 42.5,52" fill="white" opacity="0.85"/>
+      </svg>
+      <div class="onboarding-title">Welcome to OwlASO</div>
+      <div class="onboarding-desc">Track app store keywords and monitor user reviews — all in one place.</div>
+      <div class="onboarding-steps">
+        <div class="onboarding-step">
+          <div class="onboarding-step-num">1</div>
+          <div class="onboarding-step-text"><strong>Add apps</strong> — click + in the sidebar to track any app from Google Play or App Store.</div>
+        </div>
+        <div class="onboarding-step">
+          <div class="onboarding-step-num">2</div>
+          <div class="onboarding-step-text"><strong>ASO keywords</strong> — type a keyword in the left search box to analyze rankings, popularity and difficulty.</div>
+        </div>
+        <div class="onboarding-step">
+          <div class="onboarding-step-num">3</div>
+          <div class="onboarding-step-text"><strong>Review search</strong> — click an app in the sidebar, then type a topic in the right search box to find matching reviews.</div>
+        </div>
+      </div>
+      <button class="pill-btn pill-primary" id="onboardingDone" style="width:100%">Get started</button>
+    </div>
+  </div>
+
+  <!-- ── Settings Modal ───────────────────── -->
+  <div class="modal-overlay hidden" id="settingsModal">
+    <div class="modal modal-settings">
+      <div class="modal-header">
+        <div class="modal-title">Settings</div>
+        <button class="detail-close" id="closeSettingsModal">&times;</button>
+      </div>
+      <div class="modal-body settings-body">
+        <section class="settings-section">
+          <div class="settings-section-label">Appearance</div>
+          <div class="theme-picker">
+            <button class="theme-btn" data-theme="light">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="4"/><path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.22 4.22l1.06 1.06M14.72 14.72l1.06 1.06M4.22 15.78l1.06-1.06M14.72 5.28l1.06-1.06"/></svg>
+              Light
+            </button>
+            <button class="theme-btn" data-theme="dark">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M17.5 12A7.5 7.5 0 0 1 8 2.5a7.5 7.5 0 1 0 9.5 9.5z"/></svg>
+              Dark
+            </button>
+            <button class="theme-btn" data-theme="system">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="3" width="16" height="11" rx="2"/><path d="M7 18h6M10 14v4"/></svg>
+              System
+            </button>
+          </div>
+        </section>
+        <section class="settings-section">
+          <div class="settings-section-label">Integrations</div>
+          <div class="settings-integration-row is-disabled">
+            <div class="settings-integration-label">
+              <span class="settings-integration-title">Meta Ads Library <span class="badge-soon">Coming soon</span></span>
+              <span class="settings-integration-desc">Enriches ASO difficulty scores with active ad counts. This integration is not available yet.</span>
+            </div>
+            <div class="settings-token-row">
+              <input class="settings-token-input" id="metaTokenInput" type="password" placeholder="Not available yet" autocomplete="off" spellcheck="false" disabled>
+              <button class="pill-btn" id="saveMetaTokenBtn" disabled>Save</button>
+            </div>
+            <div class="settings-token-status hidden" id="metaTokenStatus"></div>
+          </div>
+        </section>
+        <section class="settings-section">
+          <div class="settings-section-label">Developer</div>
+          <div class="settings-integration-row">
+            <div class="settings-integration-label">
+              <span class="settings-integration-title">Reset App Data</span>
+              <span class="settings-integration-desc">Clears all tracked apps, folders, and settings from localStorage. Double-click to confirm.</span>
+            </div>
+            <button class="pill-btn pill-btn-danger" id="resetDataBtn">Reset</button>
+          </div>
+        </section>
+        <section class="settings-section">
+          <div class="settings-section-label">About</div>
+          <div class="about-block">
+            <svg class="about-logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+              <polygon points="15,19 12,9 21,16" fill="var(--accent)"/>
+              <polygon points="33,19 36,9 27,16" fill="var(--accent)"/>
+              <circle cx="24" cy="28" r="16" fill="none" stroke="var(--accent)" stroke-width="2"/>
+              <circle cx="17" cy="25" r="5" fill="var(--accent)" opacity="0.18"/>
+              <circle cx="17" cy="25" r="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+              <circle cx="31" cy="25" r="5" fill="var(--accent)" opacity="0.18"/>
+              <circle cx="31" cy="25" r="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+              <circle cx="17" cy="25" r="2.2" fill="var(--accent)"/>
+              <circle cx="31" cy="25" r="2.2" fill="var(--accent)"/>
+              <polygon points="22.5,33 24,36.5 25.5,33" fill="var(--accent)"/>
+            </svg>
+            <div class="about-name">OwlASO</div>
+            <div class="about-version">Version 1.5.0</div>
+            <div class="about-desc">Track app store keywords, analyze rankings, and monitor user reviews — all in one place. Built for indie developers and ASO professionals who want real insights without the noise.</div>
+            <div class="about-meta">
+              <span>Node.js + Electron</span>
+              <span class="about-sep">·</span>
+              <span>Google Play &amp; App Store</span>
+              <span class="about-sep">·</span>
+              <span>© 2026 OwlASO</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
