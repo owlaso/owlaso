@@ -34,3 +34,14 @@ test('topTerms counts a review once per term', () => {
   const [first] = topTerms([{ text: 'lag lag lag' }, { text: 'lag again' }]);
   assert.deepEqual(first, { term: 'lag', count: 2 });
 });
+
+test('connector words in other languages are not reported as complaint terms', () => {
+  const bad = [
+    { rating: 1, text: 'Perdi minha sequência depois da atualização' },
+    { rating: 1, text: 'La sincronización falla después de actualizar, entre dispositivos' },
+  ];
+  const good = ['Widget lindo', 'Diseño limpio', 'Recordatorios puntuales', 'Estatísticas claras', 'Calendário ótimo'].map((text) => ({ rating: 5, text }));
+  const terms = distinctiveTerms(bad, good).map((t) => t.term);
+  for (const w of ['depois', 'después', 'entre']) assert.ok(!terms.includes(w), `${w} is filler`);
+  assert.ok(terms.includes('sincronización'));
+});

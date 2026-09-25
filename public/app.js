@@ -810,12 +810,14 @@ function appIcon(app, cls = '') {
     : `<span class="${cls} icon-fallback" aria-hidden="true">${escapeHtml(name.slice(0, 1).toUpperCase())}</span>`;
 }
 
+// The top app keeps its name; the rest are icon-only (name in the tooltip) so
+// long store titles never squeeze every chip down to a single letter.
 function appsChips(apps, max = 4) {
   const list = apps || [];
-  const chips = list.slice(0, max).map((app) => {
+  const chips = list.slice(0, max).map((app, i) => {
     const name = app.name || app.title || '';
     return `
-    <button type="button" class="kw-app-chip" data-app-index="${escapeHtml(app._index)}" data-pop="1" data-tip="${escapeHtml(name)}${app.bestRank ? ` · best rank #${escapeHtml(app.bestRank)}` : ''}">
+    <button type="button" class="kw-app-chip${i ? ' icon-only' : ''}" aria-label="${escapeHtml(name)}" data-app-index="${escapeHtml(app._index)}" data-pop="1" data-tip="${escapeHtml(name)}${app.bestRank ? ` · best rank #${escapeHtml(app.bestRank)}` : ''}">
       <span class="kw-app-chip-icon">${appIcon(app)}</span>
       <span class="kw-app-chip-name">${escapeHtml(name)}</span>
     </button>`;
@@ -2080,7 +2082,7 @@ function renderFullData() {
   // Summary cards
   fdSlot('summary').innerHTML = `
     <div class="fd-card"><span class="fd-card-label">Reviews</span><span class="fd-card-value">${roundToK(g.count)}</span></div>
-    <div class="fd-card"><span class="fd-card-label">Avg rating</span><span class="fd-card-value">${g.avgRating ?? '—'}${g.avgRating ? '<small>/5</small>' : ''}</span></div>
+    <div class="fd-card"><span class="fd-card-label">Avg rating</span><span class="fd-card-value">${g.avgRating ? `${Number(g.avgRating).toFixed(1)}<small>/5</small>` : '—'}</span></div>
     <div class="fd-card"><span class="fd-card-label">1–2★ share</span><span class="fd-card-value ${g.rated && (g.stars[1] + g.stars[2]) / g.rated > 0.2 ? 'bad' : ''}">${g.rated ? Math.round(((g.stars[1] + g.stars[2]) / g.rated) * 100) : 0}<small>%</small></span></div>
     <div class="fd-card"><span class="fd-card-label">Date range</span><span class="fd-card-value small">${g.dateFrom ? escapeHtml(absoluteDate(g.dateFrom)) : '—'} – ${g.dateTo ? escapeHtml(absoluteDate(g.dateTo)) : '—'}</span></div>
     ${Object.entries(d.perStore).map(([p, n]) => `<div class="fd-card"><span class="fd-card-label">${STORE_ICON[p] || ''}${STORE_NAMES[p] || p}</span><span class="fd-card-value">${roundToK(n)}</span></div>`).join('')}`;

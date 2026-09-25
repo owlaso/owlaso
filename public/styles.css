@@ -641,11 +641,11 @@ kbd {
 .kw-table tbody tr[tabindex]:hover { background: var(--surface-hover); }
 .kw-table tbody tr:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
 
-.kw-col-keyword { width: 25%; }
-.kw-col-updated { width: 12%; }
-.kw-col-pop, .kw-col-diff { width: 15%; }
-.kw-col-pos { width: 12%; }
-.kw-col-apps { width: 21%; }
+.kw-col-keyword { width: 24%; }
+.kw-col-updated { width: 11%; }
+.kw-col-pop, .kw-col-diff { width: 13.5%; }
+.kw-col-pos { width: 11%; }
+.kw-col-apps { width: 27%; }
 
 .kw-keyword { font-weight: 600; font-size: 13px; }
 .kw-keyword-type {
@@ -719,7 +719,9 @@ kbd {
 .kw-app-chip:not(.static):hover { background: var(--accent-soft); border-color: var(--accent); }
 .kw-app-chip-icon { width: 20px; height: 20px; border-radius: 5px; overflow: hidden; flex-shrink: 0; }
 .kw-app-chip-icon img, .kw-app-chip-icon .icon-fallback { width: 100%; height: 100%; object-fit: cover; }
-.kw-app-chip-name { font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
+.kw-app-chip-name { font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.kw-app-chip.icon-only { padding: 0 2px; flex-shrink: 0; }
+.kw-app-chip.icon-only .kw-app-chip-name { display: none; }
 .kw-apps-more {
   height: 26px;
   padding: 0 8px;
@@ -1248,7 +1250,7 @@ kbd {
 .fd-section-title .muted { font-weight: 500; text-transform: none; letter-spacing: 0; margin-left: 4px; }
 .fd-facet {
   display: grid;
-  grid-template-columns: minmax(64px, 110px) 1fr 44px;
+  grid-template-columns: minmax(0, 1fr) 64px 40px;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -1261,7 +1263,8 @@ kbd {
 }
 .fd-facet:hover { background: var(--surface-alt); }
 .fd-facet.active { background: var(--accent-soft); border-color: var(--accent); }
-.fd-facet-label { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fd-facet-label { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fd-facet-label > :is(svg, img, span) { vertical-align: -1px; margin-right: 5px; }
 .fd-facet-bar { height: 6px; border-radius: 3px; background: var(--surface-alt); box-shadow: inset 0 0 0 1px var(--border); overflow: hidden; }
 .fd-facet-bar span { display: block; height: 100%; background: var(--suggestion); border-radius: 3px; }
 .fd-facet-count { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }

@@ -10,13 +10,13 @@ export const STOPWORDS = new Set([
   // tr
   've', 'bir', 'bu', 'çok', 'ile', 'için', 'ama', 'gibi', 'daha', 'ben', 'sen', 'biz', 'siz', 'var', 'yok', 'olarak', 'olan', 'her', 'şey', 'kadar', 'sonra', 'önce', 'diye', 'hiç', 'veya', 'ancak', 'uygulama', 'uygulamayı', 'uygulamanın', 'uygulaması', 'güzel', 'harika', 'süper', 'mükemmel', 'teşekkürler', 'teşekkür', 'iyi', 'kötü', 'berbat', 'bayıldım', 'tavsiye', 'ederim', 'gerçekten', 'bence', 'olsun', 'olmuş', 'oldu', 'değil', 'neden', 'nasıl', 'bile', 'artık', 'sadece', 'tamam',
   // de
-  'und', 'die', 'der', 'das', 'ist', 'nicht', 'ich', 'ein', 'eine', 'mit', 'den', 'auf', 'für', 'sich', 'von', 'sie', 'dem', 'auch', 'aber', 'sehr', 'wie', 'nur', 'noch', 'wenn', 'bei', 'man', 'mehr', 'kann', 'habe', 'hat', 'wird', 'oder', 'schon', 'immer', 'gut', 'toll', 'klasse', 'prima', 'schlecht', 'einfach',
+  'und', 'die', 'der', 'das', 'ist', 'nicht', 'nach', 'seit', 'trotz', 'kein', 'keine', 'zwischen', 'ohne', 'weil', 'ich', 'ein', 'eine', 'mit', 'den', 'auf', 'für', 'sich', 'von', 'sie', 'dem', 'auch', 'aber', 'sehr', 'wie', 'nur', 'noch', 'wenn', 'bei', 'man', 'mehr', 'kann', 'habe', 'hat', 'wird', 'oder', 'schon', 'immer', 'gut', 'toll', 'klasse', 'prima', 'schlecht', 'einfach',
   // fr
-  'les', 'des', 'est', 'pas', 'que', 'qui', 'pour', 'dans', 'sur', 'elle', 'avec', 'mais', 'plus', 'très', 'tout', 'bien', 'mon', 'mes', 'application', 'appli', 'aux', 'sont', 'fait', 'être', 'génial', 'bon', 'bonne', 'facile', 'nul', 'top',
+  'les', 'des', 'est', 'pas', 'que', 'qui', 'pour', 'dans', 'sur', 'après', 'depuis', 'entre', 'sans', 'quand', 'car', 'rien', 'encore', 'elle', 'avec', 'mais', 'plus', 'très', 'tout', 'bien', 'mon', 'mes', 'application', 'appli', 'aux', 'sont', 'fait', 'être', 'génial', 'bon', 'bonne', 'facile', 'nul', 'top',
   // es / pt / it
-  'los', 'las', 'del', 'una', 'por', 'con', 'para', 'pero', 'muy', 'más', 'como', 'esta', 'este', 'aplicación', 'todo', 'buena', 'bueno', 'buenísima', 'excelente', 'genial', 'fácil', 'facil', 'mejor', 'encanta', 'gusta', 'perfecta', 'malo', 'mala',
-  'uma', 'não', 'com', 'mais', 'muito', 'mas', 'meu', 'minha', 'aplicativo', 'isso', 'esse', 'essa', 'está', 'tem', 'bom', 'boa', 'ótimo', 'ótima', 'otimo', 'legal', 'gostei', 'amei', 'melhor', 'perfeito', 'maravilhoso', 'ruim', 'péssimo',
-  'che', 'non', 'della', 'molto', 'più', 'gli', 'applicazione', 'anche', 'sono', 'questo', 'questa', 'bello', 'bella', 'ottimo', 'ottima', 'bellissima', 'brutto',
+  'los', 'las', 'del', 'una', 'por', 'con', 'para', 'pero', 'muy', 'más', 'como', 'esta', 'este', 'después', 'entre', 'cuando', 'desde', 'sobre', 'también', 'hasta', 'sin', 'nada', 'porque', 'aplicación', 'todo', 'buena', 'bueno', 'buenísima', 'excelente', 'genial', 'fácil', 'facil', 'mejor', 'encanta', 'gusta', 'perfecta', 'malo', 'mala',
+  'uma', 'não', 'com', 'mais', 'depois', 'entre', 'após', 'quando', 'desde', 'sem', 'nada', 'ainda', 'pra', 'porque', 'muito', 'mas', 'meu', 'minha', 'aplicativo', 'isso', 'esse', 'essa', 'está', 'tem', 'bom', 'boa', 'ótimo', 'ótima', 'otimo', 'legal', 'gostei', 'amei', 'melhor', 'perfeito', 'maravilhoso', 'ruim', 'péssimo',
+  'che', 'non', 'della', 'molto', 'più', 'dopo', 'tra', 'senza', 'quando', 'perché', 'ancora', 'gli', 'applicazione', 'anche', 'sono', 'questo', 'questa', 'bello', 'bella', 'ottimo', 'ottima', 'bellissima', 'brutto',
   // nl / pl / sv / id
   'het', 'een', 'van', 'dat', 'niet', 'voor', 'zijn', 'maar', 'ook', 'heel', 'wel', 'nog', 'dan', 'bij', 'aan', 'wat', 'geen', 'goed', 'leuk', 'mooi', 'slecht', 'handig',
   'się', 'nie', 'jest', 'jak', 'ale', 'tak', 'aplikacja', 'aplikacji', 'bardzo', 'już', 'mnie', 'tylko', 'czy', 'dobra', 'fajna', 'fajny', 'polecam', 'świetna', 'dziękuję',
