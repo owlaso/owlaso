@@ -1,221 +1,178 @@
 import http from 'node:http';
+import net from 'node:net';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { searchApps, fetchReviews, fetchReviewsMulti, searchGoogleApps, searchAppleApps, fetchGoogleAppDetails, fetchAppleAppDetails } from './providers.js';
-import { analyzeKeyword } from './aso.js';
-import { getRankHistory, formatHistoryChart } from './aso.js';
-import { toCsv } from './filters.js';
+import { handleApiRequest, APP_VERSION } from './api.js';
 
-const version = '1.5.0';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, '../public');
 const port = Number.parseInt(process.env.PORT || '3000', 10);
+// Loopback only by default: the API triggers outbound store traffic and writes history files.
+const host = process.env.HOST || '127.0.0.1';
+
+// Domain names allowed in the Host header. IP literals and "localhost" are always
+// allowed; any other name is rejected so DNS-rebinding pages cannot reach the API.
+const allowedHosts = new Set(['localhost', ...String(process.env.ALLOWED_HOSTS || '')
+  .split(',').map((h) => h.trim().toLowerCase()).filter(Boolean)]);
 
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml; charset=utf-8'
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8'
 };
 
-function json(res, status, payload) {
-  const body = JSON.stringify(payload, null, 2);
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store'
-  });
+const SECURITY_HEADERS = {
+  'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'no-referrer',
+  'cross-origin-opener-policy': 'same-origin',
+  'cross-origin-resource-policy': 'same-origin',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()'
+};
+
+function send(res, status, body, headers = {}) {
+  if (res.headersSent) return res.end();
+  res.writeHead(status, { ...SECURITY_HEADERS, 'cache-control': 'no-store', ...headers });
   res.end(body);
 }
 
-function text(res, status, body, contentType = 'text/plain; charset=utf-8') {
-  res.writeHead(status, { 'content-type': contentType, 'cache-control': 'no-store' });
-  res.end(body);
+function sendJson(res, status, payload) {
+  send(res, status, JSON.stringify(payload), { 'content-type': 'application/json; charset=utf-8' });
 }
 
-function queryObject(url) {
-  return Object.fromEntries(url.searchParams.entries());
+export function isAllowedHost(hostHeader) {
+  const match = /^(\[[0-9a-f:.]+\]|[^:[\]]+)(?::\d{1,5})?$/iu.exec(String(hostHeader || ''));
+  if (!match) return false;
+  const name = match[1].toLowerCase();
+  const bare = name.startsWith('[') ? name.slice(1, -1) : name;
+  return net.isIP(bare) !== 0 || allowedHosts.has(name);
 }
 
-async function handleApi(req, res, url) {
+// Blocks requests other websites make the browser send (<img src>, fetch, forms).
+// Address-bar navigation (Sec-Fetch-Site: none), same-origin calls and non-browser
+// clients (no Sec-Fetch-* / Origin headers) pass.
+export function isCrossSiteRequest(headers) {
+  const site = headers['sec-fetch-site'];
+  if (site && site !== 'same-origin' && site !== 'none') return true;
+  const origin = headers.origin;
+  if (origin === undefined) return false;
   try {
-    if (url.pathname === '/api/health') {
-      return json(res, 200, {
-        ok: true,
-        mock: process.env.MOCK_STORE_DATA === '1',
-        time: new Date().toISOString(),
-        node: process.version
-      });
-    }
-
-    if (url.pathname === '/api/search') {
-      const rows = await searchApps(queryObject(url));
-      return json(res, 200, { results: rows });
-    }
-
-    if (url.pathname === '/api/asosearch') {
-      const q = queryObject(url);
-      const data = await analyzeKeyword({
-        keyword: q.q,
-        store: q.store,
-        country: q.country,
-        lang: q.lang,
-        limit: Number(q.limit) || 12,
-        fbToken: q.fbToken || null,
-      });
-      return json(res, 200, data);
-    }
-
-    if (url.pathname === '/api/asosearch/history') {
-      const q = queryObject(url);
-      const snapshots = getRankHistory(q.q, q.store || 'both');
-      return json(res, 200, { keyword: q.q, store: q.store || 'both', chart: formatHistoryChart(snapshots) });
-    }
-
-    if (url.pathname === '/api/app-details') {
-      const q = queryObject(url);
-      const primaryPlat = q.platform === 'apple' ? 'apple' : 'google';
-      const primary = await (primaryPlat === 'apple'
-        ? fetchAppleAppDetails({ appId: q.appId, country: q.country })
-        : fetchGoogleAppDetails({ appId: q.appId, country: q.country, lang: q.lang }));
-
-      let counterpart = null;
-      if (q.store === 'both' && primary.title) {
-        const otherPlat = primaryPlat === 'apple' ? 'google' : 'apple';
-        const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        try {
-          const rows = otherPlat === 'google'
-            ? await searchGoogleApps({ q: primary.title, country: q.country, lang: q.lang || 'en', limit: 5 })
-            : await searchAppleApps({ q: primary.title, country: q.country, lang: q.lang || 'en', limit: 5 });
-          const match = rows.find((r) => norm(r.title) === norm(primary.title)) || rows[0];
-          if (match) {
-            counterpart = otherPlat === 'apple'
-              ? await fetchAppleAppDetails({ appId: match.appId, country: q.country })
-              : await fetchGoogleAppDetails({ appId: match.appId, country: q.country, lang: q.lang });
-          }
-        } catch { /* best-effort */ }
-      }
-
-      return json(res, 200, { primary, counterpart });
-    }
-
-    if (url.pathname === '/api/reviews') {
-      const q = queryObject(url);
-      const payload = q.multi === '1' ? await fetchReviewsMulti(q) : await fetchReviews(q);
-      return json(res, 200, payload);
-    }
-
-    if (url.pathname === '/api/reviews.full') {
-      const q = queryObject(url);
-      const { fetchAllReviews } = await import('./providers.js');
-      const payload = await fetchAllReviews(q);
-      return json(res, 200, payload);
-    }
-
-    // NDJSON stream: one line per completed store×lang group, then a final
-    // "done" line. The client renders groups as they arrive; disconnect aborts.
-    if (url.pathname === '/api/reviews.full.stream') {
-      const q = queryObject(url);
-      const { fetchAllReviewsStream } = await import('./providers.js');
-      const controller = new AbortController();
-      let clientGone = false;
-
-      res.writeHead(200, {
-        'content-type': 'application/x-ndjson; charset=utf-8',
-        'cache-control': 'no-store',
-        'x-accel-buffering': 'no'
-      });
-      const send = (obj) => {
-        if (clientGone) return;
-        try { res.write(`${JSON.stringify(obj)}\n`); } catch { clientGone = true; }
-      };
-      res.on('close', () => {
-        if (!res.writableEnded) {
-          clientGone = true;
-          controller.abort();
-        }
-      });
-
-      try {
-        const summary = await fetchAllReviewsStream(q, {
-          signal: controller.signal,
-          onGroup: (group) => send({ type: 'group', group })
-        });
-        if (!clientGone) send({ type: 'done', ...summary });
-      } catch (error) {
-        if (!clientGone) send({ type: 'error', error: error.message || String(error) });
-      }
-      res.end();
-      return;
-    }
-
-    if (url.pathname === '/api/reviews.csv') {
-      const payload = await fetchReviews(queryObject(url));
-      return text(res, 200, toCsv(payload.reviews), 'text/csv; charset=utf-8');
-    }
-
-    return json(res, 404, { error: 'API route not found.' });
-  } catch (error) {
-    return json(res, 500, { error: error.message || String(error) });
+    return new URL(origin).host !== headers.host;
+  } catch {
+    return true; // "null" and malformed origins
   }
 }
 
 function resolvePublicPath(urlPathname) {
-  let decodedPathname = '/';
+  let decoded;
   try {
-    decodedPathname = decodeURIComponent(urlPathname || '/');
+    decoded = decodeURIComponent(urlPathname || '/');
   } catch {
-    decodedPathname = '/';
+    return null;
   }
-
-  // Always handle URL paths as POSIX paths first. On Windows, path.normalize('/') becomes
+  if (decoded.includes('\0')) return null;
+  // Handle URL paths as POSIX paths first. On Windows, path.normalize('/') becomes
   // a directory separator, which can accidentally make createReadStream read a folder.
-  const posixPath = path.posix.normalize(decodedPathname).replace(/^\/+/u, '');
-  const requested = posixPath === '' ? 'index.html' : posixPath;
-  const absolute = path.resolve(publicDir, requested);
-
-  if (!absolute.startsWith(publicDir + path.sep) && absolute !== publicDir) return null;
+  const posixPath = path.posix.normalize(decoded).replace(/^\/+/u, '');
+  const absolute = path.resolve(publicDir, posixPath === '' ? 'index.html' : posixPath);
+  if (!absolute.startsWith(publicDir + path.sep)) return null;
   return absolute;
 }
 
 async function serveStatic(req, res, url) {
-  const preferredPath = resolvePublicPath(url.pathname);
-  if (!preferredPath) return text(res, 403, 'Forbidden');
+  const requested = resolvePublicPath(url.pathname);
+  if (!requested) return send(res, 403, 'Forbidden', { 'content-type': 'text/plain; charset=utf-8' });
 
-  let filePath = preferredPath;
-  let fileStat = null;
-
-  try {
-    fileStat = await stat(filePath);
-  } catch {
+  let filePath = requested;
+  let fileStat = await stat(filePath).catch(() => null);
+  if (!fileStat?.isFile()) {
+    // SPA fallback for app routes only; a missing asset is a real 404.
+    if (path.extname(url.pathname)) return send(res, 404, 'Not found', { 'content-type': 'text/plain; charset=utf-8' });
     filePath = path.join(publicDir, 'index.html');
     fileStat = await stat(filePath);
   }
 
-  if (!fileStat.isFile()) {
-    filePath = path.join(publicDir, 'index.html');
-    fileStat = await stat(filePath);
-  }
-
-  const ext = path.extname(filePath).toLowerCase();
-  res.writeHead(200, { 'content-type': mimeTypes[ext] || 'application/octet-stream' });
-
-  const stream = createReadStream(filePath);
-  stream.on('error', (error) => {
-    if (!res.headersSent) return text(res, 500, error.message || 'Static file error');
-    res.destroy(error);
+  res.writeHead(200, {
+    ...SECURITY_HEADERS,
+    'content-type': mimeTypes[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
+    'content-length': fileStat.size,
+    'cache-control': 'no-cache'
   });
+  if (req.method === 'HEAD') return res.end();
+  const stream = createReadStream(filePath);
+  stream.on('error', (error) => res.destroy(error));
   stream.pipe(res);
 }
 
-const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  if (url.pathname.startsWith('/api/')) return handleApi(req, res, url);
-  return serveStatic(req, res, url);
-});
+async function serveApi(req, res, url) {
+  const result = await handleApiRequest(url);
+  if (!result.ndjson) {
+    return send(res, result.status, result.body, { 'content-type': result.contentType, ...result.headers });
+  }
 
-server.listen(port, () => {
-  console.log(`Store Review Filter App running on http://localhost:${port}`);
-});
+  res.writeHead(result.status, {
+    ...SECURITY_HEADERS,
+    'content-type': result.contentType,
+    'cache-control': 'no-store',
+    'x-accel-buffering': 'no'
+  });
+  // A disconnecting client aborts the remaining background fetches.
+  const controller = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) controller.abort();
+  });
+  await result.ndjson((obj) => {
+    if (!controller.signal.aborted) res.write(`${JSON.stringify(obj)}\n`);
+  }, controller.signal);
+  res.end();
+}
+
+export function createServer() {
+  return http.createServer(async (req, res) => {
+    try {
+      if (!isAllowedHost(req.headers.host)) return send(res, 403, 'Forbidden host', { 'content-type': 'text/plain; charset=utf-8' });
+      if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed', { allow: 'GET, HEAD', 'content-type': 'text/plain; charset=utf-8' });
+      // Never build URLs from the Host header: a malformed one used to crash the process.
+      const url = new URL(req.url || '/', 'http://localhost');
+      if (url.pathname.startsWith('/api/')) {
+        if (isCrossSiteRequest(req.headers)) return sendJson(res, 403, { error: 'Cross-site requests are not allowed.' });
+        return await serveApi(req, res, url);
+      }
+      return await serveStatic(req, res, url);
+    } catch (error) {
+      console.error('[server]', error);
+      if (!res.headersSent) sendJson(res, 500, { error: 'Internal server error' });
+      else res.destroy();
+    }
+  });
+}
+
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  const server = createServer();
+  server.on('error', (error) => {
+    console.error(error.code === 'EADDRINUSE'
+      ? `Port ${port} is already in use. Set PORT to another value, e.g. PORT=3001 npm start`
+      : error);
+    process.exit(1);
+  });
+  server.listen(port, host, () => {
+    const shown = host === '127.0.0.1' || host === '::1' ? 'localhost' : host;
+    console.log(`OwlASO ${APP_VERSION} running on http://${shown}:${port}`);
+  });
+  const shutdown = () => {
+    server.close(() => process.exit(0));
+    server.closeIdleConnections();
+    setTimeout(() => process.exit(0), 2000).unref();
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}

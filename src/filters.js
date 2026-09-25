@@ -1,3 +1,5 @@
+export { toCsv } from '../public/lib/csv.js';
+
 export function parseStars(value) {
   if (!value) return [];
   return String(value)
@@ -12,57 +14,70 @@ export function normalizeDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function endOfDay(value) {
+  const date = normalizeDate(value);
+  if (!date) return null;
+  // A bare "YYYY-MM-DD" means the whole day (UTC), not its first millisecond.
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(String(value).trim())) date.setUTCHours(23, 59, 59, 999);
+  return date;
+}
+
+function terms(value) {
+  return String(value || '').trim().toLowerCase().split(/\s+/u).filter(Boolean);
+}
+
+function haystackOf(review) {
+  return [review.title, review.text, review.author, review.version].filter(Boolean).join(' ').toLowerCase();
+}
+
+// Filters:
+//   stars=1,2          exact star values
+//   minRating/maxRating inclusive range (swapped when given the wrong way round)
+//   allKeywords        every whitespace-separated term must appear
+//   anyKeyword         at least one term must appear
+//   keyword            the exact phrase must appear
+//   version, dateFrom, dateTo, minLength, replyOnly
 export function applyReviewFilters(reviews, filters = {}) {
   const stars = Array.isArray(filters.stars) ? filters.stars : parseStars(filters.stars);
-  const minRating = Number.parseFloat(String(filters.minRating ?? ''));
-  const maxRating = Number.parseFloat(String(filters.maxRating ?? ''));
-  const anyKeyword = (filters.anyKeyword || filters.keyword || '').trim().toLowerCase();
+  let minRating = Number.parseFloat(String(filters.minRating ?? ''));
+  let maxRating = Number.parseFloat(String(filters.maxRating ?? ''));
+  if (Number.isFinite(minRating) && Number.isFinite(maxRating) && minRating > maxRating) {
+    [minRating, maxRating] = [maxRating, minRating];
+  }
+  const ratingFilter = stars.length > 0 || Number.isFinite(minRating) || Number.isFinite(maxRating);
+  const allTerms = terms(filters.allKeywords);
+  const anyTerms = terms(filters.anyKeyword);
+  const phrase = String(filters.keyword || '').trim().toLowerCase();
   const dateFrom = normalizeDate(filters.dateFrom);
-  const dateTo = normalizeDate(filters.dateTo);
-  const keyword = (filters.keyword || '').trim().toLowerCase();
-  const version = (filters.version || '').trim().toLowerCase();
+  const dateTo = endOfDay(filters.dateTo);
+  const version = String(filters.version || '').trim().toLowerCase();
   const minLength = Number.parseInt(filters.minLength || '0', 10) || 0;
   const replyOnly = String(filters.replyOnly || '').toLowerCase() === 'true';
+  const needsText = allTerms.length > 0 || anyTerms.length > 0 || phrase !== '';
 
   return reviews.filter((review) => {
-    const rating = Number(review.rating);
-    if (Number.isFinite(rating)) {
+    if (ratingFilter) {
+      const rating = Number(review.rating);
+      if (!Number.isFinite(rating)) return false;
       if (Number.isFinite(minRating) && rating < minRating) return false;
       if (Number.isFinite(maxRating) && rating > maxRating) return false;
+      if (stars.length && !stars.includes(rating)) return false;
     }
-    if (stars.length && !stars.includes(rating)) return false;
 
     if (dateFrom || dateTo) {
       const reviewDate = normalizeDate(review.date);
       if (!reviewDate) return false;
       if (dateFrom && reviewDate < dateFrom) return false;
-      if (dateTo) {
-        const inclusiveTo = new Date(dateTo);
-        inclusiveTo.setHours(23, 59, 59, 999);
-        if (reviewDate > inclusiveTo) return false;
-      }
+      if (dateTo && reviewDate > dateTo) return false;
     }
 
-    if (version) {
-      const reviewVersion = String(review.version || '').toLowerCase();
-      if (!reviewVersion.includes(version)) return false;
-    }
+    if (version && !String(review.version || '').toLowerCase().includes(version)) return false;
 
-    if (anyKeyword) {
-      const haystack = [review.title, review.text, review.author, review.version]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      const terms = anyKeyword.split(/\s+/u).filter(Boolean);
-      if (!terms.some((term) => haystack.includes(term))) return false;
-    }
-
-    if (keyword) {
-      const haystack = [review.title, review.text, review.author, review.version]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      if (!haystack.includes(keyword)) return false;
+    if (needsText) {
+      const haystack = haystackOf(review);
+      if (allTerms.length && !allTerms.every((term) => haystack.includes(term))) return false;
+      if (anyTerms.length && !anyTerms.some((term) => haystack.includes(term))) return false;
+      if (phrase && !haystack.includes(phrase)) return false;
     }
 
     if (minLength > 0 && String(review.text || '').length < minLength) return false;
@@ -70,27 +85,4 @@ export function applyReviewFilters(reviews, filters = {}) {
 
     return true;
   });
-}
-
-export function toCsv(rows) {
-  const headers = [
-    'platform',
-    'appId',
-    'rating',
-    'title',
-    'text',
-    'author',
-    'date',
-    'version',
-    'helpful',
-    'replyText',
-    'url'
-  ];
-
-  const escape = (value) => {
-    const raw = value == null ? '' : String(value);
-    return /[",\n]/.test(raw) ? `"${raw.replaceAll('"', '""')}"` : raw;
-  };
-
-  return [headers.join(','), ...rows.map((row) => headers.map((h) => escape(row[h])).join(','))].join('\n');
 }

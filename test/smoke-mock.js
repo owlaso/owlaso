@@ -1,9 +1,13 @@
 import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 const port = 3333;
+const historyDir = mkdtempSync(path.join(tmpdir(), 'owlaso-smoke-'));
 const child = spawn(process.execPath, ['src/server.js'], {
   cwd: new URL('..', import.meta.url),
-  env: { ...process.env, PORT: String(port), MOCK_STORE_DATA: '1' },
+  env: { ...process.env, PORT: String(port), MOCK_STORE_DATA: '1', RANK_HISTORY_DIR: historyDir },
   stdio: ['ignore', 'pipe', 'pipe']
 });
 
@@ -72,6 +76,13 @@ try {
   if (!Array.isArray(aso.similar)) throw new Error('ASO search: similar keywords must be an array');
   if (aso.competitorKeywords && !Array.isArray(aso.competitorKeywords)) throw new Error('ASO search: competitorKeywords must be an array');
 
+  const history = await fetchJsonWhenReady(`http://localhost:${port}/api/asosearch/history?q=instagram&store=both&country=us&lang=en`);
+  if (!Array.isArray(history.snapshots) || history.snapshots.length !== 1) throw new Error('ASO history: expected one snapshot after one analysis');
+
+  const stream = await fetchTextWhenReady(`http://localhost:${port}/api/reviews.full.stream?appId=com.instagram.android&platform=both`);
+  const lines = stream.trim().split('\n').map((line) => JSON.parse(line));
+  if (lines.at(-1).type !== 'done' || !lines.some((l) => l.type === 'group')) throw new Error('Full-data stream: expected group lines and a final done line');
+
   console.log('Mock smoke test passed. Server, routes, broad app search, static files, filters, both-store merge, and ASO keyword analysis work.');
   process.exitCode = 0;
 } catch (error) {
@@ -81,4 +92,5 @@ try {
   process.exitCode = 1;
 } finally {
   child.kill();
+  rmSync(historyDir, { recursive: true, force: true });
 }

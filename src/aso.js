@@ -1,19 +1,28 @@
-import {
-  searchAppleApps,
-  searchGoogleApps,
-  fetchAppleAppDetails,
-  fetchGoogleAppDetails,
-} from './providers.js';
-import { fetchFacebookAdSignals, hasFacebookToken } from './ads.js';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  searchAppleApps,
+  searchGoogleApps,
+  fetchGoogleAppDetails,
+  mapWithConcurrency,
+  normalizeTitle,
+  developerSimilarity,
+  cleanCountry,
+  cleanLang,
+} from './providers.js';
+import { fetchFacebookAdSignals, hasFacebookToken } from './ads.js';
+import { badRequest } from './errors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+export const RANKING_DEPTH = 50;        // search results kept per store to compute positions
 const MAX_DETAILS_PER_STORE = 8;
 const MAX_MERGED_APPS = 15;
 const ADS_PROBE_LIMIT = 6;
+const MAX_HISTORY_SNAPSHOTS = 180;      // one per day
+const MAX_KEYWORD_LENGTH = 100;
 
 function clamp(value, lo, hi) {
   return Math.min(hi, Math.max(lo, value));
@@ -24,133 +33,92 @@ function toScore(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function normName(value) {
-  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
 function roundToK(value) {
   if (!value) return 0;
   if (value >= 1000) return `${(value / 1000).toFixed(value >= 100000 ? 0 : 1)}K`;
   return Math.round(value).toString();
 }
 
-async function mapWithConcurrency(items, concurrency, mapper) {
-  const out = new Array(items.length);
-  let cursor = 0;
-  const workerCount = Math.min(concurrency, items.length);
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      out[index] = await mapper(items[index], index);
-    }
-  });
-  await Promise.all(workers);
-  return out;
+export function normalizeStore(store) {
+  return store === 'google' || store === 'apple' ? store : 'both';
 }
 
-async function fetchAppDetails(store, app, country, lang) {
-  try {
-    return store === 'google'
-      ? await fetchGoogleAppDetails({ appId: app.appId, country, lang })
-      : await fetchAppleAppDetails({ appId: app.appId, country });
-  } catch (error) {
-    return { ...app, platform: store, fetchError: error.message || String(error) };
-  }
+export function normalizeKeyword(keyword) {
+  return String(keyword || '').trim().replace(/\s+/gu, ' ');
 }
 
-// Similar-keyword suggestions derived from real ranking apps + ASO patterns.
+// ── Similar keywords ──────────────────────────────────────────────────────
+
 const KEYWORD_SUFFIXES = ['app', 'apps', 'premium', 'free', 'best', 'for android', 'for ios', 'maker', 'planner', 'tracker'];
 const MODIFIERS = ['daily', 'best', 'simple', 'easy', 'my', 'free', 'personal', 'digital', 'smart', 'ultimate'];
 
-function buildSimilarKeywords(q, appTitles, count = 8) {
-  const queryLower = String(q || '').trim().toLowerCase();
-  const queryTokens = queryLower.split(/\s+/u).filter((t) => t.length >= 3);
+// Latin words need 3+ letters to be meaningful; CJK words are often 2 characters.
+function meaningfulToken(token) {
+  return token.length >= 3 || (token.length >= 2 && /[^\u0000-ɏ]/u.test(token));
+}
+
+function tokenize(value) {
+  return String(value || '').toLowerCase().split(/[^\p{L}\p{N}+]+/u).filter(meaningfulToken);
+}
+
+export function buildSimilarKeywords(q, appTitles, count = 8) {
+  const queryLower = normalizeKeyword(q).toLowerCase();
+  const queryTokens = queryLower.split(/\s+/u).filter(meaningfulToken);
   const seen = new Set([queryLower]);
   const out = [];
-
   if (!queryTokens.length) return out;
 
-  const titleWordArrays = [];
-  for (const title of appTitles) {
-    const words = String(title || '').toLowerCase().split(/[^a-z0-9+]+/u).filter((w) => w.length >= 3);
-    if (words.length) titleWordArrays.push(words);
-  }
+  const titleWordArrays = appTitles.map(tokenize).filter((words) => words.length);
+  const push = (candidate) => {
+    if (out.length >= count || seen.has(candidate)) return;
+    seen.add(candidate);
+    out.push(candidate);
+  };
 
-  // 1) Phrases (2-3 words) ripped straight from real titles that contain the full query.
+  // 1) Phrases (2-3 words) from real titles that contain the full query.
   const isRunOn = (phrase) => phrase.split(' ').some((word) =>
     queryTokens.some((t) => word.includes(t) && word.length - t.length >= 3));
   for (const words of titleWordArrays) {
-    if (out.length >= count) break;
-    for (let i = 0; i < words.length - 1; i += 1) {
+    for (let i = 0; i < words.length - 1 && out.length < count; i += 1) {
       for (const size of [3, 2]) {
         if (i + size > words.length) continue;
         const phrase = words.slice(i, i + size).join(' ');
         if (phrase.includes(queryLower) && !seen.has(phrase) && !isRunOn(phrase)) {
-          seen.add(phrase);
-          out.push(phrase);
+          push(phrase);
           break;
         }
       }
     }
   }
 
-  // 2) Prefix modifiers ("best habit tracker", "daily habit tracker app").
-  for (const mod of MODIFIERS) {
-    if (out.length >= count) break;
-    const candidate = `${mod} ${queryLower}`;
-    if (!seen.has(candidate)) {
-      seen.add(candidate);
-      out.push(candidate);
-    }
-  }
-
-  // 3) Suffix expansions.
-  for (const suffix of KEYWORD_SUFFIXES) {
-    if (out.length >= count) break;
-    const candidate = `${queryLower} ${suffix}`;
-    if (!seen.has(candidate)) {
-      seen.add(candidate);
-      out.push(candidate);
-    }
-  }
+  // 2) Prefix modifiers ("best habit tracker"), 3) suffix expansions ("habit tracker app").
+  for (const mod of MODIFIERS) push(`${mod} ${queryLower}`);
+  for (const suffix of KEYWORD_SUFFIXES) push(`${queryLower} ${suffix}`);
 
   // 4) Fallback single-token expansions from real titles.
-  if (out.length < count) {
-    const token = queryTokens[0];
-    for (const words of titleWordArrays) {
-      if (out.length >= count) break;
-      for (const word of words) {
-        const candidate = `${token} ${word}`;
-        if (!seen.has(candidate) && !candidate.includes(`${token} ${token}`)) {
-          seen.add(candidate);
-          out.push(candidate);
-        }
-        if (out.length >= count) break;
-      }
+  const token = queryTokens[0];
+  for (const words of titleWordArrays) {
+    for (const word of words) {
+      if (word !== token) push(`${token} ${word}`);
     }
   }
 
   return out.slice(0, count);
 }
 
+// ── Metrics ───────────────────────────────────────────────────────────────
+
 function computeMetrics(apps) {
   const breadth = apps.length;
   const totalReviews = apps.reduce((sum, app) => sum + app.totalReviews, 0);
   const logDemand = clamp(Math.log10(1 + totalReviews) / 8, 0, 1);
-  const avgRating = breadth
-    ? apps.reduce((sum, app) => sum + app.avgRating, 0) / breadth
-    : 0;
+  const rated = apps.filter((app) => app.avgRating > 0);
+  const avgRating = rated.length ? rated.reduce((sum, app) => sum + app.avgRating, 0) / rated.length : 0;
   const avgScore = clamp((avgRating - 1) / 4, 0, 1);
-  const adsFraction = breadth
-    ? apps.filter((app) => app.adsActive).length / breadth
-    : 0;
-  const authority = breadth
-    ? apps.filter((app) => app.totalReviews >= 50000).length / breadth
-    : 0;
-  const strongRatings = breadth
-    ? apps.filter((app) => app.avgRating >= 4).length / breadth
-    : 0;
+  const share = (predicate) => (breadth ? apps.filter(predicate).length / breadth : 0);
+  const adsFraction = share((app) => app.adsActive);
+  const authority = share((app) => app.totalReviews >= 50000);
+  const strongRatings = share((app) => app.avgRating >= 4);
 
   const popularity = Math.round(
     Math.min(1, breadth / 12) * 22 +
@@ -166,11 +134,6 @@ function computeMetrics(apps) {
     Math.min(1, breadth / 20) * 20
   );
 
-  const opportunity = Math.round((popularity * (100 - difficulty)) / 100);
-  const position = breadth
-    ? Math.max(1, Math.round(apps.reduce((sum, app) => sum + app.bestRank, 0) / breadth))
-    : 0;
-
   return {
     breadth,
     totalReviews,
@@ -178,192 +141,171 @@ function computeMetrics(apps) {
     avgRating: Math.round(avgRating * 100) / 100,
     adsFraction: Math.round(adsFraction * 100),
     authority: Math.round(authority * 100),
-    popularity,
-    difficulty,
-    opportunity,
-    position
+    popularity: clamp(popularity, 0, 100),
+    difficulty: clamp(difficulty, 0, 100),
+    opportunity: Math.round((popularity * (100 - difficulty)) / 100),
   };
 }
 
-// --- Rank history persistence (per keyword, per store) ---
+// ── Rank history (one file per keyword × store × country × language) ─────
 
-const RANK_HISTORY_DIR = process.env.RANK_HISTORY_DIR
-  ? path.resolve(process.env.RANK_HISTORY_DIR)
-  : path.resolve(__dirname, '..', 'data', 'rank-history');
-
-function ensureRankHistoryDir() {
-  if (process.env.DISABLE_RANK_HISTORY === '1') return false;
-  try {
-    fs.mkdirSync(RANK_HISTORY_DIR, { recursive: true });
-    return true;
-  } catch {
-    return false;
-  }
+function rankHistoryDir() {
+  return process.env.RANK_HISTORY_DIR
+    ? path.resolve(process.env.RANK_HISTORY_DIR)
+    : path.resolve(__dirname, '..', 'data', 'rank-history');
 }
 
-function rankHistoryPath(keyword, store) {
-  const safe = String(keyword || '').replace(/[^a-z0-9_-]/gi, '_').slice(0, 120) || 'untitled';
-  return path.join(RANK_HISTORY_DIR, `${safe}.${store}.json`);
+export function rankHistoryFile({ keyword, store, country, lang }) {
+  const kw = normalizeKeyword(keyword).toLowerCase();
+  const identity = [kw, normalizeStore(store), cleanCountry(country), cleanLang(lang)].join('\u0000');
+  const hash = createHash('sha256').update(identity).digest('hex').slice(0, 20);
+  // The file name is built only from [a-z0-9-] and hex, so no input can escape the directory.
+  const slug = kw.normalize('NFKD').replace(/[^a-z0-9]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 48) || 'keyword';
+  return path.join(rankHistoryDir(), `${slug}.${hash}.json`);
 }
 
-function loadRankHistory(keyword, store) {
-  if (process.env.DISABLE_RANK_HISTORY === '1') return null;
+function readHistory(file) {
   try {
-    const p = rankHistoryPath(keyword, store);
-    if (!fs.existsSync(p)) return null;
-    const raw = fs.readFileSync(p, 'utf8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return parsed && Array.isArray(parsed.snapshots) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-function saveRankSnapshot(keyword, store, apps, metrics) {
+function saveRankSnapshot(params, analysis) {
   if (process.env.DISABLE_RANK_HISTORY === '1') return null;
-  ensureRankHistoryDir();
-  const hist = loadRankHistory(keyword, store) || { keyword, store, snapshots: [] };
-  const snapshot = {
-    at: new Date().toISOString(),
-    position: metrics.position || null,
-    popularity: metrics.popularity,
-    difficulty: metrics.difficulty,
-    opportunity: metrics.opportunity,
-    appCount: apps.length,
-    topApp: apps[0]?.name || null,
-    topAppRank: apps[0]?.bestRank || null,
-  };
-  hist.snapshots.push(snapshot);
-  // keep last 180 daily snapshots
-  if (hist.snapshots.length > 180) hist.snapshots = hist.snapshots.slice(-180);
   try {
-    fs.writeFileSync(rankHistoryPath(keyword, store), JSON.stringify(hist, null, 2), 'utf8');
-    return hist;
-  } catch {
-    return null;
-  }
-}
-
-export function getRankHistory(keyword, store) {
-  if (process.env.DISABLE_RANK_HISTORY === '1') return [];
-  const hist = loadRankHistory(keyword, store);
-  return hist && Array.isArray(hist.snapshots) ? hist.snapshots : [];
-}
-
-export function formatHistoryChart(snapshots) {
-  return snapshots.slice().reverse().map((s) => ({
-    date: new Date(s.at).toLocaleDateString(),
-    position: s.position,
-    popularity: s.popularity,
-    difficulty: s.difficulty,
-    opportunity: s.opportunity,
-  }));
-}
-
-// app across stores into a single row and computes ASO metrics.
-export async function analyzeKeyword({
-  keyword,
-  store = 'both',
-  country = 'us',
-  lang = 'en',
-  limit = 12,
-  fbToken = null,
-} = {}) {
-  const q = String(keyword || '').trim();
-  if (q.length < 2) throw new Error('Keyword must be at least 2 characters.');
-
-  if (process.env.MOCK_STORE_DATA === '1') {
-    const mockApps = [
-      { name: 'Instagram', icon: '', url: '', stores: [{ platform: 'google', appId: 'com.instagram.android', rating: 4.1, reviews: 50000, icon: '', url: '', containsAds: true, installs: '5B+', free: true, price: 0, genre: 'Social', updated: '2026-01-01T00:00:00.000Z' }, { platform: 'apple', appId: '389801252', rating: 4.7, reviews: 30000, icon: '', url: '', containsAds: false, installs: '', free: true, price: 0, genre: 'Social', updated: '2026-01-01T00:00:00.000Z' }], totalReviews: 80000, avgRating: 4.4, adsActive: true, bestRank: 1, fbAds: null },
-      { name: 'Habitica', icon: '', url: '', stores: [{ platform: 'apple', appId: '994882113', rating: 4.5, reviews: 20000, icon: '', url: '', containsAds: false, installs: '', free: true, price: 0, genre: 'Health', updated: '2026-02-01T00:00:00.000Z' }], totalReviews: 20000, avgRating: 4.5, adsActive: false, bestRank: 2, fbAds: null },
-    ];
-    const filteredApps = store === 'both' ? mockApps : mockApps
-      .map((app) => ({ ...app, stores: app.stores.filter((s) => s.platform === store) }))
-      .filter((app) => app.stores.length > 0);
-    saveRankSnapshot(q, store, filteredApps, computeMetrics(filteredApps));
-    return {
-      keyword: q,
-      similar: [`best ${q}`, `${q} app`, `free ${q}`, `daily ${q}`],
-      competitorKeywords: [{ app: 'Instagram', keywords: ['instagram', 'instagram app', 'instagram free', 'best instagram'] }],
-      analyzedAt: new Date().toISOString(),
-      country,
-      lang,
-      store,
-      apps: filteredApps,
-      metrics: computeMetrics(filteredApps),
-      errors: []
+    const file = rankHistoryFile(params);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const hist = readHistory(file) || { snapshots: [] };
+    const snapshot = {
+      at: analysis.analyzedAt,
+      popularity: analysis.metrics.popularity,
+      difficulty: analysis.metrics.difficulty,
+      opportunity: analysis.metrics.opportunity,
+      appCount: analysis.apps.length,
+      topApp: analysis.apps[0]?.name || null,
+      rankings: analysis.rankings,
     };
+    const snapshots = hist.snapshots.filter((s) => s && typeof s.at === 'string');
+    // One snapshot per day: re-running an analysis refreshes today's point.
+    if (snapshots.length && snapshots.at(-1).at.slice(0, 10) === snapshot.at.slice(0, 10)) snapshots.pop();
+    snapshots.push(snapshot);
+    const body = {
+      keyword: normalizeKeyword(params.keyword),
+      store: normalizeStore(params.store),
+      country: cleanCountry(params.country),
+      lang: cleanLang(params.lang),
+      snapshots: snapshots.slice(-MAX_HISTORY_SNAPSHOTS),
+    };
+    const tmp = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(body), 'utf8');
+    fs.renameSync(tmp, file);
+    return body.snapshots;
+  } catch {
+    return null; // history is best-effort; never fail an analysis over it
+  }
+}
+
+// Snapshots oldest → newest. Each carries per-store rankings (app ids in search
+// order), so the position of any tracked app can be read back for every day.
+export function getRankHistory({ keyword, store = 'both', country = 'us', lang = 'en' } = {}) {
+  if (process.env.DISABLE_RANK_HISTORY === '1') return [];
+  if (normalizeKeyword(keyword).length < 2) return [];
+  return readHistory(rankHistoryFile({ keyword, store, country, lang }))?.snapshots || [];
+}
+
+// ── Keyword analysis ──────────────────────────────────────────────────────
+
+function mockAnalysis({ q, store, country, lang }) {
+  const updated = '2026-01-01T00:00:00.000Z';
+  const apps = [
+    {
+      name: 'Instagram', icon: '', url: '',
+      stores: [
+        { platform: 'google', appId: 'com.instagram.android', rank: 1, rating: 4.1, reviews: 50000, icon: '', url: '', developer: 'Instagram', containsAds: true, installs: '5B+', free: true, price: 0, genre: 'Social', updated },
+        { platform: 'apple', appId: '389801252', rank: 2, rating: 4.7, reviews: 30000, icon: '', url: '', developer: 'Instagram, Inc.', containsAds: false, installs: '', free: true, price: 0, genre: 'Social', updated },
+      ],
+      totalReviews: 80000, avgRating: 4.33, adsActive: true, updated, bestRank: 1, fbAds: null,
+    },
+    {
+      name: 'Habitica', icon: '', url: '',
+      stores: [
+        { platform: 'apple', appId: '994882113', rank: 1, rating: 4.5, reviews: 20000, icon: '', url: '', developer: 'HabitRPG, Inc.', containsAds: false, installs: '', free: true, price: 0, genre: 'Health', updated: '2026-02-01T00:00:00.000Z' },
+      ],
+      totalReviews: 20000, avgRating: 4.5, adsActive: false, updated: '2026-02-01T00:00:00.000Z', bestRank: 1, fbAds: null,
+    },
+  ];
+  const filtered = store === 'both' ? apps : apps
+    .map((app) => ({ ...app, stores: app.stores.filter((s) => s.platform === store) }))
+    .filter((app) => app.stores.length > 0);
+  const rankings = {};
+  if (store !== 'apple') rankings.google = ['com.instagram.android'];
+  if (store !== 'google') rankings.apple = ['994882113', '389801252'];
+  return {
+    keyword: q,
+    similar: [`best ${q}`, `${q} app`, `free ${q}`, `daily ${q}`],
+    competitorKeywords: [{ app: 'Instagram', keywords: ['instagram', 'instagram app', 'instagram free', 'best instagram'] }],
+    analyzedAt: new Date().toISOString(),
+    country,
+    lang,
+    store,
+    apps: filtered,
+    rankings,
+    metrics: computeMetrics(filtered),
+    errors: [],
+    warnings: [],
+  };
+}
+
+function toStoreListing(app) {
+  return {
+    platform: app.platform,
+    appId: app.appId,
+    rank: app.rank,
+    rating: toScore(app.score),
+    reviews: toScore(app.reviews),
+    icon: app.icon || '',
+    url: app.url || '',
+    developer: app.developer || '',
+    containsAds: Boolean(app.containsAds),
+    installs: app.installs || '',
+    free: app.free !== false,
+    price: toScore(app.price),
+    genre: app.genre || '',
+    updated: app.updated || null,
+  };
+}
+
+// Same title on both stores (and not a different developer) → one row.
+function mergeAcrossStores(listings) {
+  const groups = [];
+  const byTitle = new Map();
+  for (const listing of listings) {
+    const key = normalizeTitle(listing.title) || `${listing.platform}:${listing.appId}`;
+    const candidates = byTitle.get(key) || [];
+    let group = candidates.find((g) => !g.listings.some((l) => l.platform === listing.platform)
+      && g.listings.every((l) => developerSimilarity(l.developer, listing.developer) >= 0));
+    if (!group) {
+      group = { name: listing.title || listing.appId, listings: [] };
+      candidates.push(group);
+      byTitle.set(key, candidates);
+      groups.push(group);
+    }
+    group.listings.push(listing);
   }
 
-  const wants = store === 'google' ? ['google'] : store === 'apple' ? ['apple'] : ['google', 'apple'];
-  const settled = await Promise.allSettled(wants.map(async (platform) => {
-    try {
-      const rows = platform === 'google'
-        ? await searchGoogleApps({ q, country, lang, limit: Math.max(limit, 10), concurrency: 12 })
-        : await searchAppleApps({ q, country, lang, limit: Math.max(limit, 10) });
-      return { platform, rows };
-    } catch (error) {
-      return { platform, rows: [], error: error.message || String(error) };
-    }
-  }));
-
-  const errors = [];
-  const gathered = [];
-  for (const result of settled) {
-    if (result.status !== 'fulfilled') {
-      errors.push(result.reason?.message || String(result.reason));
-      continue;
-    }
-    const { platform, rows, error } = result.value;
-    if (error) errors.push(`${platform}: ${error}`);
-    for (const row of rows) gathered.push({ ...row, platform });
-  }
-
-  const toDetail = gathered.slice(0, MAX_DETAILS_PER_STORE * wants.length);
-  const detailed = [];
-  const detailErrors = [];
-  await mapWithConcurrency(toDetail, 8, async (app) => {
-    const result = await fetchAppDetails(app.platform, app, country, lang);
-    if (result.fetchError) detailErrors.push(`${app.platform}:${app.appId} — ${result.fetchError}`);
-    else detailed.push(result);
-  });
-  if (detailErrors.length) errors.push(...detailErrors);
-
-  // Merge the same title across stores into one group.
-  const groups = new Map();
-  detailed.forEach((app, index) => {
-    const key = app.title ? normName(app.title) : `${app.platform}:${app.appId}`;
-    if (!groups.has(key)) groups.set(key, { name: app.title || app.appId, stores: [], firstIndex: index });
-    const group = groups.get(key);
-    group.stores.push({ ...app, searchIndex: index });
-  });
-
-  const merged = [...groups.values()].map((group) => {
-    const stores = group.stores
-      .map((store) => ({
-        platform: store.platform,
-        appId: store.appId,
-        rating: toScore(store.score),
-        reviews: toScore(store.reviews),
-        icon: store.icon || '',
-        url: store.url || '',
-        containsAds: Boolean(store.containsAds),
-        installs: store.installs || '',
-        free: store.free,
-        price: toScore(store.price),
-        genre: store.genre || '',
-        updated: store.updated || null,
-        searchIndex: store.searchIndex
-      }))
-      .sort((a, b) => b.reviews - a.reviews);
-    const totalReviews = stores.reduce((sum, store) => sum + store.reviews, 0);
-    const avgRating = stores.length
-      ? stores.reduce((sum, store) => sum + store.rating, 0) / stores.length
-      : 0;
-    const bestRank = Math.min(...stores.map((store) => store.searchIndex + 1), 99);
-    const mostRecentUpdate = stores
-      .map((store) => store.updated)
-      .filter(Boolean)
-      .sort((a, b) => new Date(b) - new Date(a))[0] || null;
+  return groups.map((group) => {
+    const stores = group.listings.map(toStoreListing).sort((a, b) => b.reviews - a.reviews);
+    const totalReviews = stores.reduce((sum, s) => sum + s.reviews, 0);
+    // Rating across stores = weighted by rating count; unrated listings don't count as 0★.
+    const rated = stores.filter((s) => s.rating > 0);
+    const weight = rated.reduce((sum, s) => sum + s.reviews, 0);
+    const avgRating = !rated.length ? 0 : weight > 0
+      ? rated.reduce((sum, s) => sum + s.rating * s.reviews, 0) / weight
+      : rated.reduce((sum, s) => sum + s.rating, 0) / rated.length;
+    const updated = stores.map((s) => s.updated).filter(Boolean).sort((a, b) => new Date(b) - new Date(a))[0] || null;
     return {
       name: group.name,
       icon: stores[0]?.icon || '',
@@ -371,25 +313,80 @@ export async function analyzeKeyword({
       stores,
       totalReviews,
       avgRating: Math.round(avgRating * 100) / 100,
-      adsFlagged: stores.some((store) => store.containsAds),
-      updated: mostRecentUpdate,
-      bestRank
+      adsFlagged: stores.some((s) => s.containsAds),
+      updated,
+      bestRank: Math.min(...stores.map((s) => s.rank)),
     };
-  })
-    .sort((a, b) => b.totalReviews - a.totalReviews)
+  });
+}
+
+async function searchStore(platform, q, country, lang) {
+  return platform === 'google'
+    ? searchGoogleApps({ q, country, lang, limit: RANKING_DEPTH })
+    : searchAppleApps({ q, country, lang, limit: RANKING_DEPTH });
+}
+
+// Searches the store(s) for a keyword, merges the same app across stores and
+// computes ASO metrics. `lite` (used for the similar-keyword rows) skips the
+// competitor probes and the history snapshot.
+export async function analyzeKeyword({
+  keyword,
+  store = 'both',
+  country = 'us',
+  lang = 'en',
+  limit = MAX_DETAILS_PER_STORE,
+  lite = false,
+} = {}) {
+  const q = normalizeKeyword(keyword);
+  if (q.length < 2) throw badRequest('Keyword must be at least 2 characters.');
+  if (q.length > MAX_KEYWORD_LENGTH) throw badRequest(`Keyword must be at most ${MAX_KEYWORD_LENGTH} characters.`);
+  const params = { keyword: q, store: normalizeStore(store), country: cleanCountry(country), lang: cleanLang(lang) };
+  const detailsPerStore = clamp(Number.parseInt(limit, 10) || MAX_DETAILS_PER_STORE, 1, MAX_DETAILS_PER_STORE);
+
+  if (process.env.MOCK_STORE_DATA === '1') {
+    const analysis = mockAnalysis({ q, ...params });
+    if (!lite) saveRankSnapshot(params, analysis);
+    return analysis;
+  }
+
+  const wants = params.store === 'both' ? ['google', 'apple'] : [params.store];
+  const searches = await Promise.all(wants.map(async (platform) => {
+    try {
+      return { platform, rows: await searchStore(platform, q, params.country, params.lang) };
+    } catch (error) {
+      return { platform, rows: [], error: `${platform === 'apple' ? 'App Store' : 'Google Play'}: ${error.message || String(error)}` };
+    }
+  }));
+  const errors = searches.filter((s) => s.error).map((s) => s.error);
+  if (errors.length === wants.length) throw new Error(errors.join(' | '));
+
+  const rankings = Object.fromEntries(searches.map((s) => [s.platform, s.rows.map((row) => row.appId)]));
+
+  // Apple search rows already carry full listing data; Google rows need a details call.
+  const warnings = [];
+  const toDetail = searches.flatMap((s) => s.rows.slice(0, detailsPerStore).map((row, index) => ({ ...row, platform: s.platform, rank: index + 1 })));
+  const listings = await mapWithConcurrency(toDetail, 6, async (row) => {
+    if (row.platform !== 'google') return row;
+    try {
+      const details = await fetchGoogleAppDetails({ appId: row.appId, country: params.country, lang: params.lang });
+      return { ...row, ...details, rank: row.rank };
+    } catch (error) {
+      warnings.push(`Google Play details for ${row.appId} unavailable: ${error.message || String(error)}`);
+      return row; // keep the search-row data rather than dropping a ranked app
+    }
+  });
+
+  const merged = mergeAcrossStores(listings)
+    .sort((a, b) => a.bestRank - b.bestRank || b.totalReviews - a.totalReviews)
     .slice(0, MAX_MERGED_APPS);
 
   // Best-effort Meta ad-archive probes for the strongest candidates.
-  const effectiveFbToken = fbToken || (hasFacebookToken() ? process.env.FB_ADLIB_ACCESS_TOKEN : null);
-  if (effectiveFbToken) {
+  const fbToken = hasFacebookToken() ? process.env.FB_ADLIB_ACCESS_TOKEN : null;
+  if (fbToken && !lite) {
     await mapWithConcurrency(merged.slice(0, ADS_PROBE_LIMIT), 2, async (app) => {
-      const signals = await fetchFacebookAdSignals({ name: app.name, countries: [country.toUpperCase()], token: effectiveFbToken });
+      const signals = await fetchFacebookAdSignals({ name: app.name, countries: [params.country.toUpperCase()], token: fbToken });
       if (signals) app.fbAds = signals;
     });
-  }
-
-  for (const app of merged) {
-    app.adsActive = app.adsFlagged || Boolean(app.fbAds && app.fbAds.activeAds > 0);
   }
 
   const apps = merged.map((app) => ({
@@ -400,79 +397,66 @@ export async function analyzeKeyword({
     totalReviews: app.totalReviews,
     totalReviewsLabel: roundToK(app.totalReviews),
     avgRating: app.avgRating,
-    adsActive: app.adsActive,
+    adsActive: app.adsFlagged || Boolean(app.fbAds && app.fbAds.activeAds > 0),
     updated: app.updated,
     bestRank: app.bestRank,
-    fbAds: app.fbAds || null
+    fbAds: app.fbAds || null,
   }));
 
   const similar = buildSimilarKeywords(q, apps.map((app) => app.name));
-
-  // Rank history: persist a daily snapshot for this keyword + store.
-  saveRankSnapshot(q, store, apps, computeMetrics(apps));
-
-  // Competitor keywords: for each top ranking app, fetch what else it ranks for.
-  const competitorKeywords = await buildCompetitorKeywords(q, apps.slice(0, 5), store, country, lang);
-
-  return {
+  const analysis = {
     keyword: q,
     similar,
-    competitorKeywords,
+    competitorKeywords: [],
     analyzedAt: new Date().toISOString(),
-    country,
-    lang,
-    store,
+    country: params.country,
+    lang: params.lang,
+    store: params.store,
     apps,
+    rankings,
     metrics: computeMetrics(apps),
-    errors
+    errors,
+    warnings,
   };
+
+  if (!lite) {
+    analysis.competitorKeywords = await buildCompetitorKeywords({ keyword: q, topApps: apps.slice(0, 5), stores: wants, similar, ...params });
+    saveRankSnapshot(params, analysis);
+  }
+  return analysis;
 }
 
-// --- Competitor keywords (real ranking data) ---
+// ── Competitor keywords (real ranking data) ───────────────────────────────
+// Probe related search terms and record which of the top apps show up for them.
 
-async function buildCompetitorKeywords(keyword, topApps, store, country, lang) {
+async function buildCompetitorKeywords({ keyword, topApps, stores, similar, country, lang }) {
   if (!topApps.length) return [];
-  const wanted = store === 'google' ? ['google'] : store === 'apple' ? ['apple'] : ['google', 'apple'];
-  const results = new Map(); // appName -> Set of keywords they rank for
-
-  for (const app of topApps) {
-    results.set(app.name, new Set([keyword]));
-  }
-
-  // For each store we have data for, search a set of probe keywords and record
-  // which of our top apps appear — those are real keywords the competitor ranks for.
-  const probeKeywords = [
+  const year = new Date().getUTCFullYear();
+  const probes = [...new Set([
     keyword,
-    ...buildSimilarKeywords(keyword, topApps.map(a => a.name), 6),
-    ...['free', 'best', 'popular', 'top', 'recommended', 'new', '2026'].map(m => `${m} ${keyword}`),
-  ];
+    ...similar.slice(0, 5),
+    ...['free', 'best', 'top', 'new'].map((m) => `${m} ${keyword}`),
+    `${keyword} ${year}`,
+  ].map((p) => p.toLowerCase()))].slice(0, 10);
 
-  for (const platform of wanted) {
-    for (const probe of probeKeywords.slice(0, 12)) {
-      try {
-        const rows = platform === 'google'
-          ? await searchGoogleApps({ q: probe, country, lang, limit: 15, concurrency: 8 })
-          : await searchAppleApps({ q: probe, country, lang, limit: 15 });
-
-        const normApp = new Map();
-        for (const app of topApps) {
-          normApp.set(normName(app.name), app.name);
-        }
-
-        for (const row of rows) {
-          const match = normApp.get(normName(row.title));
-          if (match && !results.get(match)?.has(probe)) {
-            results.get(match)?.add(probe);
-          }
-        }
-      } catch {
-        // probe failed — skip, keep partial data
-      }
-    }
+  const owner = new Map();
+  for (const app of topApps) {
+    for (const s of app.stores) owner.set(`${s.platform}:${s.appId}`, app.name);
   }
+  const found = new Map(topApps.map((app) => [app.name, new Set([keyword.toLowerCase()])]));
 
-  return topApps.map((app) => ({
-    app: app.name,
-    keywords: [...(results.get(app.name) || new Set([keyword]))].slice(0, 15),
-  }));
+  const jobs = stores.flatMap((platform) => probes.map((probe) => ({ platform, probe })));
+  await mapWithConcurrency(jobs, 4, async ({ platform, probe }) => {
+    try {
+      const rows = await searchStore(platform, probe, country, lang);
+      for (const row of rows.slice(0, 20)) {
+        const name = owner.get(`${platform}:${row.appId}`);
+        if (name) found.get(name).add(probe);
+      }
+    } catch {
+      // probe failed — keep partial data
+    }
+  });
+
+  return topApps.map((app) => ({ app: app.name, keywords: [...found.get(app.name)].slice(0, 15) }));
 }

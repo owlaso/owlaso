@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="light dark">
   <title>OwlASO</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
-  <script>var s=localStorage.getItem('theme');if(!s){s=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.className='electron'+(' '+(s||'light'))</script>
+  <script src="/theme-boot.js"></script>
 </head>
 <body>
   <div class="app-canvas">
-    <aside class="sidebar" id="sidebar">
+    <aside class="sidebar" id="sidebar" aria-label="Tracked apps">
       <div class="sidebar-brand">
         <div class="sidebar-brand-inner">
           <svg class="sidebar-logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -21,29 +24,28 @@
           </svg>
           <div class="sidebar-brand-title">OwlASO</div>
         </div>
-        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 3h10M2 7h10M2 11h10"/>
-          </svg>
+        <button class="icon-btn sidebar-toggle" id="sidebarToggle" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h10M2 7h10M2 11h10"/></svg>
         </button>
       </div>
 
-      <!-- ── Saved Apps ──────────────────────── -->
-      <section class="sidebar-section folders" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+      <section class="sidebar-section">
         <div class="sidebar-section-header">
-          <span class="section-label">My Apps</span>
-          <button class="nav-icon sidebar-hdr-btn" id="createFolderBtn" title="New folder">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 3A1.5 1.5 0 000 4.5v7A1.5 1.5 0 001.5 13h13a1.5 1.5 0 001.5-1.5v-7A1.5 1.5 0 0014.5 3H8.621a1.5 1.5 0 01-1.06-.44L6.44 1.44A1.5 1.5 0 005.378 1H1.5z"/><path fill="var(--surface)" d="M7.5 8h1v1.5H10v1H8.5V12h-1v-1.5H6v-1h1.5V8z"/></svg>
+          <span class="section-label" id="myAppsLabel">My Apps</span>
+          <button class="icon-btn" id="createFolderBtn" type="button" aria-label="New folder" title="New folder">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 3A1.5 1.5 0 000 4.5v7A1.5 1.5 0 001.5 13h13a1.5 1.5 0 001.5-1.5v-7A1.5 1.5 0 0014.5 3H8.621a1.5 1.5 0 01-1.06-.44L6.44 1.44A1.5 1.5 0 005.378 1H1.5z"/><path fill="var(--surface)" d="M7.5 7h1v2h2v1h-2v2h-1v-2h-2V9h2V7z"/></svg>
           </button>
-          <button class="nav-icon sidebar-hdr-btn" id="addAppBtn2" title="Add app" style="font-size:15px;font-weight:300;line-height:1">+</button>
+          <button class="icon-btn" id="addAppBtn2" type="button" aria-label="Add app" title="Add app (A)">
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 2v10M2 7h10"/></svg>
+          </button>
         </div>
-        <div id="folderTree" class="folder-tree" style="flex:1;overflow-y:auto;padding:2px 4px 6px"></div>
+        <div id="folderTree" class="folder-tree" role="list" aria-labelledby="myAppsLabel"></div>
       </section>
 
       <div class="sidebar-footer">
         <div class="sidebar-footer-meta" id="footerMeta">No apps tracked</div>
-        <button class="sidebar-settings-btn" id="settingsBtn" title="Settings">
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" title="Settings">
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="10" cy="10" r="3"/>
             <path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.22 4.22l1.06 1.06M14.72 14.72l1.06 1.06M4.22 15.78l1.06-1.06M14.72 5.28l1.06-1.06"/>
           </svg>
@@ -51,32 +53,63 @@
       </div>
     </aside>
 
-    <main class="main">
+    <main class="main" id="main">
       <!-- ── Toolbar ────────────────────────────── -->
       <header class="toolbar">
         <div class="toolbar-left">
-          <div class="tb-search-group">
-            <input class="tb-search" id="asoSearchInput" type="text" placeholder="ASO keyword search…" autocomplete="off">
-            <button class="tb-search-btn" id="asoSearchBtn" title="Analyze keyword">
-              <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
+          <div class="view-tabs" role="tablist" aria-label="View">
+            <button class="view-tab active" id="tabKeywords" type="button" role="tab" aria-selected="true" aria-controls="tableContainer" data-view="keywords">Keywords</button>
+            <button class="view-tab" id="tabReviews" type="button" role="tab" aria-selected="false" aria-controls="tableContainer" data-view="reviews">Reviews</button>
+          </div>
+          <div class="tb-search-group" data-view-only="keywords">
+            <input class="tb-search" id="asoSearchInput" type="search" placeholder="Analyze a keyword, e.g. habit tracker" aria-label="Keyword to analyze" autocomplete="off" spellcheck="false" maxlength="100">
+            <button class="tb-search-btn" id="asoSearchBtn" type="button" aria-label="Analyze keyword" title="Analyze (Enter)">
+              <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
             </button>
           </div>
-          <div class="tb-search-group">
-            <input class="tb-search" id="commentSearchInput" type="text" placeholder="Select an app first…" autocomplete="off" disabled>
-            <button class="tb-search-btn" id="commentSearchBtn" title="Search reviews" disabled>
-              <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
+          <div class="tb-search-group hidden" data-view-only="reviews">
+            <input class="tb-search" id="commentSearchInput" type="search" placeholder="Select an app first…" aria-label="Filter reviews by keyword" autocomplete="off" spellcheck="false" maxlength="200" disabled>
+            <button class="tb-search-btn" id="commentSearchBtn" type="button" aria-label="Filter reviews" title="Filter reviews" disabled>
+              <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
             </button>
           </div>
-          <span class="review-app-label hidden" id="reviewAppLabel">for: <strong id="reviewAppName"></strong></span>
+          <button class="review-app-label hidden" id="reviewAppLabel" type="button" title="App details">for <strong id="reviewAppName"></strong></button>
         </div>
         <div class="toolbar-right">
-          <select class="tb-select" id="storeFilter" title="App Store filter">
+          <select class="tb-select" id="storeFilter" aria-label="Store" title="Store">
             <option value="both">All stores</option>
             <option value="google">Google Play</option>
             <option value="apple">App Store</option>
           </select>
-          <span class="tb-sep"></span>
-          <select class="tb-select" id="starMin" title="Minimum stars">
+          <!-- Custom country picker -->
+          <div class="custom-select-wrap" id="countryWrap">
+            <button class="country-btn" id="countryBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Country" title="Country / storefront">
+              <span class="flag-emoji" id="countryFlag"></span>
+              <span class="country-code" id="countryCode">US</span>
+            </button>
+            <div class="country-dropdown" id="countryDropdown" role="listbox" aria-label="Country"></div>
+          </div>
+          <!-- Custom language picker -->
+          <div class="custom-select-wrap" id="langWrap">
+            <button class="country-btn" id="langBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Language" title="Review language">
+              <span class="flag-emoji" id="langFlag"></span>
+              <span class="country-code" id="langCode">All</span>
+            </button>
+            <div class="country-dropdown" id="langDropdown" role="listbox" aria-label="Language"></div>
+          </div>
+          <span class="tb-sep" aria-hidden="true"></span>
+          <button class="pill-btn" id="exportBtn" type="button" title="Export as CSV (Ctrl+E)">Export</button>
+        </div>
+      </header>
+
+      <!-- ── Keywords view: similar keywords ── -->
+      <div class="subbar similar-bar hidden" id="similarBar" data-view-only="keywords"></div>
+
+      <!-- ── Reviews view: filters + fetch summary ── -->
+      <div class="subbar review-bar hidden" id="reviewBar" data-view-only="reviews">
+        <div class="review-filters">
+          <label class="subbar-label" for="starMin">Rating</label>
+          <select class="tb-select tb-select-sm" id="starMin" aria-label="Minimum stars">
             <option value="">Min★</option>
             <option value="1">1★</option>
             <option value="2">2★</option>
@@ -84,8 +117,8 @@
             <option value="4">4★</option>
             <option value="5">5★</option>
           </select>
-          <span class="tb-sep">–</span>
-          <select class="tb-select" id="starMax" title="Maximum stars">
+          <span class="subbar-dash" aria-hidden="true">–</span>
+          <select class="tb-select tb-select-sm" id="starMax" aria-label="Maximum stars">
             <option value="">Max★</option>
             <option value="1">1★</option>
             <option value="2">2★</option>
@@ -93,108 +126,85 @@
             <option value="4">4★</option>
             <option value="5">5★</option>
           </select>
-          <span class="tb-sep"></span>
-          <select class="tb-select" id="maxReviews" title="Maximum reviews to fetch">
+          <label class="subbar-label" for="maxReviews">Fetch</label>
+          <select class="tb-select tb-select-sm" id="maxReviews" title="Maximum reviews to fetch per store">
             <option value="250">250</option>
             <option value="500">500</option>
             <option value="1000">1K</option>
             <option value="2000">2K</option>
             <option value="5000">5K</option>
           </select>
-          <span class="tb-sep"></span>
-          <!-- Custom country picker -->
-          <div class="custom-select-wrap" id="countryWrap">
-            <button class="country-btn" id="countryBtn" title="Country">
-              <span class="flag-emoji" id="countryFlag"></span>
-              <span class="country-code" id="countryCode">US</span>
-            </button>
-            <div class="country-dropdown" id="countryDropdown"></div>
-          </div>
-          <!-- Custom language picker -->
-          <div class="custom-select-wrap" id="langWrap">
-            <button class="country-btn" id="langBtn" title="Language">
-              <span class="flag-emoji" id="langFlag"></span>
-              <span class="country-code" id="langCode">All</span>
-            </button>
-            <div class="country-dropdown" id="langDropdown"></div>
-          </div>
-          <span class="tb-sep"></span>
-          <button class="pill-btn" id="exportBtn" title="Export (Ctrl+E)">Export</button>
-          <span class="tb-sep"></span>
-          <button class="pill-btn pill-accent" id="fullDataBtn" title="Fetch all reviews across stores & languages">Full data</button>
+          <button class="pill-btn pill-accent" id="fullDataBtn" type="button" title="Fetch every reachable review across stores and languages">Full data</button>
         </div>
-      </header>
-
-      <!-- ── Similar keywords bar ── -->
-      <div class="similar-bar hidden" id="similarBar"></div>
-
-      <!-- ── Review summary (fetch progress / result counts) ── -->
-      <div class="review-summary hidden" id="reviewSummary"></div>
+        <!-- Review summary (fetch counts, store limits, warnings) -->
+        <div class="review-summary hidden" id="reviewSummary" role="status" aria-live="polite"></div>
+      </div>
 
       <!-- ── Table ───────────────────────────────── -->
-      <div class="table-wrap" id="tableContainer">
+      <div class="table-wrap" id="tableContainer" role="tabpanel" aria-labelledby="tabKeywords">
         <table class="kw-table" id="keywordTable">
           <thead id="kwTableHead">
             <tr>
-              <th class="kw-th kw-col-keyword">Keyword / Topic</th>
-              <th class="kw-th kw-col-updated">Last Updated</th>
-              <th class="kw-th kw-col-pop">Popularity</th>
-              <th class="kw-th kw-col-diff">Difficulty</th>
-              <th class="kw-th kw-col-pos">Position</th>
-              <th class="kw-th kw-col-apps">Apps in Ranking</th>
+              <th class="kw-th kw-col-keyword" scope="col">Keyword / Topic</th>
+              <th class="kw-th kw-col-updated" scope="col">Last Updated</th>
+              <th class="kw-th kw-col-pop" scope="col">Popularity</th>
+              <th class="kw-th kw-col-diff" scope="col">Difficulty</th>
+              <th class="kw-th kw-col-pos" scope="col">Position</th>
+              <th class="kw-th kw-col-apps" scope="col">Apps in Ranking</th>
             </tr>
           </thead>
           <tbody id="tableBody"></tbody>
         </table>
         <div class="empty-state" id="emptyState">
-          <div class="empty-icon">🔎</div>
-          <div class="empty-title">Search for a keyword</div>
-          <div class="empty-desc">Type an ASO keyword above to analyze ranking apps and metrics, or search reviews by topic.</div>
+          <div class="empty-icon" aria-hidden="true">🔎</div>
+          <div class="empty-title">Analyze a keyword</div>
+          <div class="empty-desc">See who ranks for it, how popular and competitive it is, and where your tracked apps stand.</div>
+          <div class="empty-actions" id="emptyActions"></div>
         </div>
-        <div class="loading-state hidden" id="loadingState">
-          <div class="spinner"></div>
-          <div>Analyzing…</div>
-        </div>
-        <div class="error-state hidden" id="errorState">
-          <div id="errorMessage">An error occurred.</div>
+        <div class="error-state hidden" id="errorState" role="alert">
+          <div class="error-icon" aria-hidden="true">⚠️</div>
+          <div class="error-title">Something went wrong</div>
+          <div class="error-message" id="errorMessage">An error occurred.</div>
+          <button class="pill-btn" id="retryBtn" type="button">Try again</button>
         </div>
       </div>
 
-      <!-- ── Keyword Detail Modal (center overlay) ── -->
-      <div class="modal-overlay hidden" id="detailOverlay">
-        <div class="modal modal-wide" id="detailPanel">
-          <div class="modal-header">
-            <div class="modal-title" id="detailTitle"></div>
-            <button class="detail-close" id="detailClose" title="Close">&times;</button>
-          </div>
-          <div class="modal-body" id="detailBody"></div>
-        </div>
-      </div>
       <!-- ── Full Data Panel ─────────────────────── -->
-      <div class="full-data-panel hidden" id="fullDataPanel">
+      <section class="full-data-panel hidden" id="fullDataPanel" aria-label="Full review data">
         <div class="full-data-header" id="fullDataHeader"></div>
         <div class="full-data-stores" id="fullDataStores"></div>
-      </div>
+      </section>
     </main>
+  </div>
+
+  <!-- ── Keyword Detail Modal ── -->
+  <div class="modal-overlay hidden" id="detailOverlay">
+    <div class="modal modal-wide" id="detailPanel" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="modal-header">
+        <h2 class="modal-title" id="detailTitle"></h2>
+        <button class="detail-close" id="detailClose" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="detailBody"></div>
+    </div>
   </div>
 
   <!-- ── Add App Modal ──────────────────────── -->
   <div class="modal-overlay hidden" id="addAppModal">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addAppTitle">
       <div class="modal-header">
-        <div class="modal-title">Add App to Track</div>
-        <button class="detail-close" id="closeAddAppModal">&times;</button>
+        <h2 class="modal-title" id="addAppTitle">Add app to track</h2>
+        <button class="detail-close" id="closeAddAppModal" type="button" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="modal-search-row">
-          <input class="modal-search-input" id="modalSearchInput" placeholder="Search apps…" type="text" autocomplete="off" style="flex:1;height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:13px;font-family:var(--font);outline:none">
-          <select class="tb-select" id="modalPlatform">
+          <input class="modal-search-input" id="modalSearchInput" data-autofocus placeholder="App name or id (com.spotify.music, 324684580)…" type="search" autocomplete="off" spellcheck="false" aria-label="Search apps">
+          <select class="tb-select" id="modalPlatform" aria-label="Store to search">
             <option value="both">All stores</option>
             <option value="google">Google Play</option>
             <option value="apple">App Store</option>
           </select>
         </div>
-        <div class="modal-results" id="modalResults">
+        <div class="modal-results" id="modalResults" aria-live="polite">
           <div class="modal-empty">Search for an app to add it to your tracking list.</div>
         </div>
       </div>
@@ -203,10 +213,10 @@
 
   <!-- ── All Apps for Keyword Modal ─────────── -->
   <div class="modal-overlay hidden" id="keywordAppsModal">
-    <div class="modal modal-wide">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="kwModalTitle">
       <div class="modal-header">
-        <div class="modal-title" id="kwModalTitle"></div>
-        <button class="detail-close" id="closeKwAppsModal">&times;</button>
+        <h2 class="modal-title" id="kwModalTitle"></h2>
+        <button class="detail-close" id="closeKwAppsModal" type="button" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body" id="kwModalBody"></div>
     </div>
@@ -214,10 +224,10 @@
 
   <!-- ── App Detail Modal ───────────────────── -->
   <div class="modal-overlay hidden" id="appDetailModal">
-    <div class="modal modal-wide">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="appDetailTitle">
       <div class="modal-header">
-        <div class="modal-title" id="appDetailTitle"></div>
-        <button class="detail-close" id="closeAppDetailModal">&times;</button>
+        <h2 class="modal-title" id="appDetailTitle"></h2>
+        <button class="detail-close" id="closeAppDetailModal" type="button" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body" id="appDetailBody"></div>
     </div>
@@ -225,10 +235,14 @@
 
   <!-- ── Review Detail Modal ────────────────── -->
   <div class="modal-overlay hidden" id="reviewModal">
-    <div class="modal modal-review">
+    <div class="modal modal-review" role="dialog" aria-modal="true" aria-labelledby="reviewModalTitle">
       <div class="modal-header">
-        <div class="modal-title" id="reviewModalTitle">Review</div>
-        <button class="detail-close" id="closeReviewModal">&times;</button>
+        <h2 class="modal-title" id="reviewModalTitle">Review</h2>
+        <div class="modal-header-actions">
+          <button class="icon-btn" id="prevReviewBtn" type="button" aria-label="Previous review" title="Previous (←)">‹</button>
+          <button class="icon-btn" id="nextReviewBtn" type="button" aria-label="Next review" title="Next (→)">›</button>
+          <button class="detail-close" id="closeReviewModal" type="button" aria-label="Close">&times;</button>
+        </div>
       </div>
       <div class="modal-body" id="reviewModalBody"></div>
     </div>
@@ -236,8 +250,8 @@
 
   <!-- ── First-time Onboarding ─────────────── -->
   <div class="onboarding-overlay hidden" id="onboardingOverlay">
-    <div class="onboarding-card">
-      <svg class="onboarding-logo" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <div class="onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+      <svg class="onboarding-logo" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <defs>
           <linearGradient id="owlGrad" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stop-color="#818cf8"/>
@@ -248,58 +262,67 @@
         <polygon points="25,33 21,20 32,30" fill="white" opacity="0.92"/>
         <polygon points="55,33 59,20 48,30" fill="white" opacity="0.92"/>
         <circle cx="40" cy="46" r="22" fill="none" stroke="white" stroke-width="2.5" opacity="0.88"/>
-        <circle cx="29" cy="43" r="6.5" fill="white" opacity="0.22"/>
         <circle cx="29" cy="43" r="6.5" fill="none" stroke="white" stroke-width="2"/>
-        <circle cx="51" cy="43" r="6.5" fill="white" opacity="0.22"/>
         <circle cx="51" cy="43" r="6.5" fill="none" stroke="white" stroke-width="2"/>
         <circle cx="29" cy="43" r="3" fill="white"/>
         <circle cx="51" cy="43" r="3" fill="white"/>
         <polygon points="37.5,52 40,56.5 42.5,52" fill="white" opacity="0.85"/>
       </svg>
-      <div class="onboarding-title">Welcome to OwlASO</div>
-      <div class="onboarding-desc">Track app store keywords and monitor user reviews — all in one place.</div>
-      <div class="onboarding-steps">
-        <div class="onboarding-step">
-          <div class="onboarding-step-num">1</div>
-          <div class="onboarding-step-text"><strong>Add apps</strong> — click + in the sidebar to track any app from Google Play or App Store.</div>
-        </div>
-        <div class="onboarding-step">
-          <div class="onboarding-step-num">2</div>
-          <div class="onboarding-step-text"><strong>ASO keywords</strong> — type a keyword in the left search box to analyze rankings, popularity and difficulty.</div>
-        </div>
-        <div class="onboarding-step">
-          <div class="onboarding-step-num">3</div>
-          <div class="onboarding-step-text"><strong>Review search</strong> — click an app in the sidebar, then type a topic in the right search box to find matching reviews.</div>
-        </div>
-      </div>
-      <button class="pill-btn pill-primary" id="onboardingDone" style="width:100%">Get started</button>
+      <h2 class="onboarding-title" id="onboardingTitle">Welcome to OwlASO</h2>
+      <div class="onboarding-desc">Research App Store &amp; Google Play keywords and monitor what users say — in one place.</div>
+      <ol class="onboarding-steps">
+        <li class="onboarding-step">
+          <span class="onboarding-step-num" aria-hidden="true">1</span>
+          <span class="onboarding-step-text"><strong>Add your apps</strong> — the + in the sidebar tracks any app from either store.</span>
+        </li>
+        <li class="onboarding-step">
+          <span class="onboarding-step-num" aria-hidden="true">2</span>
+          <span class="onboarding-step-text"><strong>Keywords</strong> — analyze a keyword to see popularity, difficulty and where the selected app ranks.</span>
+        </li>
+        <li class="onboarding-step">
+          <span class="onboarding-step-num" aria-hidden="true">3</span>
+          <span class="onboarding-step-text"><strong>Reviews</strong> — pick an app to read and filter its reviews from both stores; Ctrl/⌘-click to compare apps.</span>
+        </li>
+      </ol>
+      <button class="pill-btn pill-primary pill-block" id="onboardingDone" type="button" data-autofocus>Add my first app</button>
+      <button class="link-btn" id="onboardingSkip" type="button">Skip for now</button>
     </div>
   </div>
 
   <!-- ── Settings Modal ───────────────────── -->
   <div class="modal-overlay hidden" id="settingsModal">
-    <div class="modal modal-settings">
+    <div class="modal modal-settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="modal-header">
-        <div class="modal-title">Settings</div>
-        <button class="detail-close" id="closeSettingsModal">&times;</button>
+        <h2 class="modal-title" id="settingsTitle">Settings</h2>
+        <button class="detail-close" id="closeSettingsModal" type="button" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body settings-body">
         <section class="settings-section">
           <div class="settings-section-label">Appearance</div>
-          <div class="theme-picker">
-            <button class="theme-btn" data-theme="light">
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="4"/><path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.22 4.22l1.06 1.06M14.72 14.72l1.06 1.06M4.22 15.78l1.06-1.06M14.72 5.28l1.06-1.06"/></svg>
+          <div class="theme-picker" role="radiogroup" aria-label="Theme">
+            <button class="theme-btn" type="button" role="radio" aria-checked="false" data-theme="light">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="4"/><path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.22 4.22l1.06 1.06M14.72 14.72l1.06 1.06M4.22 15.78l1.06-1.06M14.72 5.28l1.06-1.06"/></svg>
               Light
             </button>
-            <button class="theme-btn" data-theme="dark">
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M17.5 12A7.5 7.5 0 0 1 8 2.5a7.5 7.5 0 1 0 9.5 9.5z"/></svg>
+            <button class="theme-btn" type="button" role="radio" aria-checked="false" data-theme="dark">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M17.5 12A7.5 7.5 0 0 1 8 2.5a7.5 7.5 0 1 0 9.5 9.5z"/></svg>
               Dark
             </button>
-            <button class="theme-btn" data-theme="system">
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="3" width="16" height="11" rx="2"/><path d="M7 18h6M10 14v4"/></svg>
+            <button class="theme-btn" type="button" role="radio" aria-checked="false" data-theme="system">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="2" y="3" width="16" height="11" rx="2"/><path d="M7 18h6M10 14v4"/></svg>
               System
             </button>
           </div>
+        </section>
+        <section class="settings-section">
+          <div class="settings-section-label">Keyboard shortcuts</div>
+          <dl class="shortcut-list">
+            <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
+            <div><dt><kbd>A</kbd></dt><dd>Add app</dd></div>
+            <div><dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>E</kbd></dt><dd>Export CSV</dd></div>
+            <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next review</dd></div>
+            <div><dt><kbd>Esc</kbd></dt><dd>Close dialog</dd></div>
+          </dl>
         </section>
         <section class="settings-section">
           <div class="settings-section-label">Integrations</div>
@@ -309,45 +332,40 @@
               <span class="settings-integration-desc">Enriches ASO difficulty scores with active ad counts. This integration is not available yet.</span>
             </div>
             <div class="settings-token-row">
-              <input class="settings-token-input" id="metaTokenInput" type="password" placeholder="Not available yet" autocomplete="off" spellcheck="false" disabled>
+              <input class="settings-token-input" id="metaTokenInput" type="password" placeholder="Not available yet" autocomplete="off" spellcheck="false" aria-label="Meta access token" disabled>
               <button class="pill-btn" id="saveMetaTokenBtn" disabled>Save</button>
             </div>
-            <div class="settings-token-status hidden" id="metaTokenStatus"></div>
           </div>
         </section>
         <section class="settings-section">
-          <div class="settings-section-label">Developer</div>
-          <div class="settings-integration-row">
+          <div class="settings-section-label">Data</div>
+          <div class="settings-row">
             <div class="settings-integration-label">
-              <span class="settings-integration-title">Reset App Data</span>
-              <span class="settings-integration-desc">Clears all tracked apps, folders, and settings from localStorage. Double-click to confirm.</span>
+              <span class="settings-integration-title">Reset app data</span>
+              <span class="settings-integration-desc">Removes tracked apps, folders and preferences from this device. Keyword rank history is kept.</span>
             </div>
-            <button class="pill-btn pill-btn-danger" id="resetDataBtn">Reset</button>
+            <button class="pill-btn pill-btn-danger" id="resetDataBtn" type="button">Reset</button>
           </div>
         </section>
         <section class="settings-section">
           <div class="settings-section-label">About</div>
           <div class="about-block">
-            <svg class="about-logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <svg class="about-logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <polygon points="15,19 12,9 21,16" fill="var(--accent)"/>
               <polygon points="33,19 36,9 27,16" fill="var(--accent)"/>
               <circle cx="24" cy="28" r="16" fill="none" stroke="var(--accent)" stroke-width="2"/>
-              <circle cx="17" cy="25" r="5" fill="var(--accent)" opacity="0.18"/>
               <circle cx="17" cy="25" r="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
-              <circle cx="31" cy="25" r="5" fill="var(--accent)" opacity="0.18"/>
               <circle cx="31" cy="25" r="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
               <circle cx="17" cy="25" r="2.2" fill="var(--accent)"/>
               <circle cx="31" cy="25" r="2.2" fill="var(--accent)"/>
               <polygon points="22.5,33 24,36.5 25.5,33" fill="var(--accent)"/>
             </svg>
             <div class="about-name">OwlASO</div>
-            <div class="about-version">Version 1.5.0</div>
+            <div class="about-version" id="appVersion">Version —</div>
             <div class="about-desc">Track app store keywords, analyze rankings, and monitor user reviews — all in one place. Built for indie developers and ASO professionals who want real insights without the noise.</div>
             <div class="about-meta">
-              <span>Node.js + Electron</span>
-              <span class="about-sep">·</span>
               <span>Google Play &amp; App Store</span>
-              <span class="about-sep">·</span>
+              <span class="about-sep" aria-hidden="true">·</span>
               <span>© 2026 OwlASO</span>
             </div>
           </div>
@@ -355,6 +373,8 @@
       </div>
     </div>
   </div>
+
+  <div class="toast-region" id="toastRegion" role="status" aria-live="polite"></div>
 
   <script type="module" src="/app.js"></script>
 </body>

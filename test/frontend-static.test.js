@@ -130,3 +130,45 @@ test('styles.css styles the review modal, badges, and search inputs', () => {
   assert.match(css, /\.tb-search-btn/);
   assert.doesNotMatch(css, /tb-search-btn \{[^}]*position: absolute/);
 });
+
+test('index.html ships a CSP and no inline scripts or inline event handlers', () => {
+  assert.match(index, /http-equiv="Content-Security-Policy"[^>]*script-src 'self'/);
+  const scripts = [...index.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
+  assert.ok(scripts.length >= 2);
+  for (const [, attrs, body] of scripts) {
+    assert.match(attrs, /src="/);
+    assert.equal(body.trim(), '');
+  }
+  assert.doesNotMatch(index, /\son[a-z]+="/i);
+  assert.doesNotMatch(app, /onerror=/i);
+});
+
+test('dialogs are accessible modals and icon buttons are labelled', () => {
+  for (const id of ['addAppModal', 'keywordAppsModal', 'appDetailModal', 'reviewModal', 'settingsModal', 'detailOverlay']) {
+    const block = index.slice(index.indexOf(`id="${id}"`), index.indexOf(`id="${id}"`) + 400);
+    assert.match(block, /role="dialog"[^>]*aria-modal="true"/, `${id} must be role=dialog`);
+  }
+  for (const id of ['sidebarToggle', 'createFolderBtn', 'addAppBtn2', 'settingsBtn', 'asoSearchBtn', 'commentSearchBtn']) {
+    assert.match(index, new RegExp(`id="${id}"[^>]*aria-label="`), `${id} needs an aria-label`);
+  }
+});
+
+test('app.js only puts http(s) URLs into href/src and shares the CSV implementation', () => {
+  assert.match(app, /function safeUrl/);
+  assert.match(app, /url\.protocol === 'https:' \|\| url\.protocol === 'http:'/);
+  assert.doesNotMatch(app, /href="\$\{escapeHtml\(review\.url\)\}"/);
+  assert.match(app, /from '\.\/lib\/csv\.js'/);
+});
+
+test('review requests tell the server which store the id belongs to and the known counterpart', () => {
+  assert.match(app, /appPlatform: primary\.platform/);
+  assert.match(app, /appId2: other\?\.appId/);
+  assert.match(app, /title: app\.name/);
+  assert.match(app, /choice === 'both' \? 'all' : choice/, 'add-app modal "All stores" must search both stores');
+});
+
+test('stale responses cannot overwrite newer ones', () => {
+  assert.match(app, /function beginRequest/);
+  assert.match(app, /isCurrent\('reviews', ctl\)/);
+  assert.match(app, /isCurrent\('aso', ctl\)/);
+});

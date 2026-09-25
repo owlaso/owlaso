@@ -2,78 +2,46 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**OwlASO** is a desktop (and web) app for ASO keyword analysis and app store review monitoring. Track keyword rankings, popularity and difficulty scores, and monitor user reviews from **Google Play** and the **App Store** — all in one place.
+**OwlASO** is a desktop (and local web) app for ASO keyword research and app store review monitoring across **Google Play** and the **App Store**.
 
-- **Dual-store reviews** — fetch and compare Google Play + App Store reviews side by side, auto-detecting matching apps across stores
-- **ASO keyword tracking** — analyze keywords with popularity, difficulty, and opportunity metrics, and see which apps rank for each keyword
-- **Advanced filtering** — platform, country/storefront, language, star rating, sort order, date range, app version, keyword, minimum review length, developer replies
-- **Export** — filtered reviews as CSV or JSON with one click
-- **Cross-platform** — native installers for Windows, macOS, and Linux (Electron)
-- **Dark mode** — manual toggle, persisted, defaults to OS preference
+- **Keywords** — popularity, difficulty and opportunity scores, the apps ranking for a keyword, similar keywords, and the keywords competitors also rank for
+- **Rank tracking** — the position of the app selected in the sidebar for every keyword, per store, with a daily history (trend arrows and charts)
+- **Reviews** — both stores in one table (store column per review), instant keyword/star filtering with highlighted matches, compare up to 5 apps (Ctrl/⌘-click)
+- **Full data** — every reachable review across stores and languages, streamed as it loads, with rating distribution and top terms
+- **Export** — CSV (UTF-8 with BOM, formula-injection safe) for keywords, reviews and full data; JSON for full data
+- **Desktop** — Windows (NSIS), macOS (DMG) and Linux (AppImage) installers via Electron; light/dark/system theme
 
 > Landing page: <https://owlaso.github.io> — Source: <https://github.com/owlaso/owlaso>
 
-## Features
+## How the numbers are made
 
-| Feature | Apple Search Ads | OwlASO (ours) |
-|---|---|---|
-| Popularity | Apple's own Search Ads popularity score — first-party search-volume data | Proxy: breadth + review volume + ratings (src/aso.js:150) |
-| Difficulty | Computed for "ranking in top 10" feasibility per term | Heuristic: authority + ads + strong ratings + breadth (src/aso.js:157) |
-| Rank tracking | Daily, 60+ App Store regions, position history charts | None — snapshot per search |
-| Competitor keywords | Extracts what competitors actually rank for | Generates similar keywords from title phrases + modifiers (src/aso.js:61) — not real ranking data |
-| Stores | Apple only | Both stores + review monitoring |
-| Price | $9/mo | Free, self-hosted |
+| Metric | How OwlASO computes it |
+|---|---|
+| Popularity (0–100) | Proxy from the ranking apps: breadth of results, rating volume (log scale), average rating, share of apps with ads (`src/aso.js`) |
+| Difficulty (0–100) | Share of "authority" apps (≥50K ratings), apps with ads, strong ratings (≥4★) and result breadth |
+| Opportunity | `popularity × (100 − difficulty) / 100` |
+| Position | Rank of your selected app in the store's search results for the keyword (top 50 per store) |
+| History | One snapshot per keyword × store × country × language per day (kept for 180 days) |
+| Competitor keywords | Related searches are probed and the top apps that actually appear in their results are recorded |
+
+These are free, public-data estimates — not Apple Search Ads' first-party popularity data.
 
 ## Reality check
 
-Apple review fetching uses public iTunes/RSS endpoints. Google Play does **not** provide a simple public official reviews API, so this app uses `google-play-scraper`. The upstream project warns that Google Play layout changes can break parsers. This app adds a search fallback, but Google reviews can still be throttled or broken by store-side changes.
-
-For production-scale/commercial scraping, add caching, backoff, request queues, and a compliant data provider. Do not hammer the stores.
+Apple data comes from the public iTunes Search API and customer-review RSS feed (capped by Apple at ~500 reviews per storefront). Google Play has no official public reviews API, so OwlASO uses [`google-play-scraper`](https://github.com/facundoolano/google-play-scraper); Google layout changes can break it, and Google may throttle requests. OwlASO caches results, coalesces duplicate requests, retries with backoff (honouring `Retry-After`) and only falls back to HTML scraping when the scraper fails — but please do not hammer the stores.
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22.12+
 - Internet access from the machine running the app
 
-Tested locally in this package with:
-
-```bash
-npm test
-npm run smoke:mock
-```
-
-`npm run smoke:live` needs outbound internet from your own machine. The build sandbox used to package this app blocks live Apple/Google fetches, so live validation must run on your Windows box.
-
-## Install
+## Install & run
 
 ```bash
 npm install
-```
-
-## Run
-
-Web mode:
-
-```bash
-npm start
-```
-
-Dev mode (auto-restart on change):
-
-```bash
-npm run dev
-```
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-Desktop mode (Electron):
-
-```bash
-npm run electron
+npm start            # web mode → http://localhost:3000
+npm run dev          # web mode with auto-restart
+npm run electron     # desktop mode
 ```
 
 ## Build installers
@@ -84,155 +52,71 @@ npm run dist:mac      # macOS DMG (arm64 + x64)
 npm run dist:linux    # Linux AppImage
 ```
 
-Outputs land in `dist/`. `electron-builder` packages `src/`, `public/`, and `electron/`.
+Outputs land in `dist/`.
 
 ## Usage
 
-1. Pick **Google Play**, **App Store**, or **All**.
-2. Set **Max app results per store**. Default is 200. Google is capped at 250; Apple public search is capped at 200.
-3. Search for an app. The result list now returns the broadest related-app set exposed by the public endpoints instead of only a small top-result slice.
-4. Click **Use** on a result. The selected app id/platform are copied into the review filters and the filter panel is highlighted.
-   - Google Play id example: `com.instagram.android`
-   - App Store id example: `389801252`
-5. Set filters.
-6. Click **Fetch reviews**.
-7. Use **Export CSV** or **Export JSON** for the currently filtered table.
+1. **Add apps** — click **+** in the sidebar and search by name, package name (`com.spotify.music`) or App Store id (`324684580`). Apps found on both stores are merged into one entry.
+2. **Keywords** — type a keyword and press Enter. The analyzed keyword and 5 similar ones are scored; the **Position** column shows where the selected app ranks on each store. Click a row for details, trend charts and competitor keywords.
+3. **Reviews** — select an app. Filter by keyword (all words must match) and star range instantly; change store, country, language or the fetch size to load new data. **Load more** raises the fetch size. **Full data** pulls everything in every language.
+4. **Export** — `Ctrl/⌘+E` exports what you are looking at as CSV.
 
-To see Google Play and App Store reviews side by side in one table: pick a result with **Use**, switch **Review platform** to **Both stores**, and click **Fetch reviews**. The server auto-detects the matching app on the other store by title (paste an id in **Second app id** to override) and fetches both stores **in parallel**, merging them into one view tagged per store.
+Shortcuts: `/` focus search · `A` add app · `←/→` previous/next review · `Esc` close dialog.
 
-### ASO keyword analysis
+## Security model
 
-Type a keyword into the ASO view to get per-store ranking apps plus computed **popularity**, **difficulty**, and **opportunity** metrics, along with similar-keyword suggestions — handy for picking terms worth targeting on Google Play and the App Store.
+- The web server binds to **127.0.0.1** by default. Requests whose `Host` is not `localhost`/an IP literal are rejected (DNS-rebinding protection) and cross-site browser requests to `/api/*` are refused (CSRF protection).
+- Strict Content-Security-Policy, `nosniff`, `frame-ancestors 'none'`, no inline scripts.
+- The Electron renderer is sandboxed with context isolation; only `http(s)` links are opened externally, in-app navigation away from the app is blocked, and permission requests are denied.
+- Rank-history files are named from a hash of the query, so request parameters can never pick the file path.
 
-## Filters
+## Configuration (environment variables)
 
-- Platform
-- Country / storefront
-- Language
-- Star ratings: 1 to 5, multi-select
-- Sort order
-- Pages / max reviews
-- Date from / date to
-- App version
-- Keyword search in title/body/author/version
-- Minimum text length
-- With developer reply only
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3000` | Web server port |
+| `HOST` | `127.0.0.1` | Bind address. Exposing on a LAN also needs `ALLOWED_HOSTS` if you use a hostname |
+| `ALLOWED_HOSTS` | — | Comma-separated extra hostnames accepted in the `Host` header |
+| `RANK_HISTORY_DIR` | `data/rank-history` (desktop: user data folder) | Where keyword history is stored |
+| `DISABLE_RANK_HISTORY` | — | `1` disables history |
+| `SEARCH_CACHE_TTL_MS` / `REVIEW_CACHE_TTL_MS` / `DETAILS_CACHE_TTL_MS` | 5 / 5 / 15 min | Cache lifetimes |
+| `CACHE_MAX_WEIGHT` | `100000` | Cache size bound (≈ number of cached rows) |
+| `DISABLE_CACHE` | — | `1` disables caching |
+| `MOCK_STORE_DATA` | — | `1` serves built-in demo data (no network) |
+| `FB_ADLIB_ACCESS_TOKEN` | — | Optional Meta Ad Library token for ad signals |
 
 ## Validation
 
-Unit tests:
-
 ```bash
-npm test
-```
-
-Mock smoke test, no live store calls:
-
-```bash
-npm run smoke:mock
-```
-
-Live smoke test, requires internet and can fail if Apple or Google throttles/changes responses:
-
-```bash
-npm run smoke:live
-```
-
-On npm, custom scripts must be run with `npm run`:
-
-```bash
-npm run smoke:live
-```
-
-Not:
-
-```bash
-npm smoke:live
+npm test              # unit + integration tests (no network)
+npm run smoke:mock    # boots the server with demo data and hits every route
+npm run smoke:live    # real Apple/Google calls — needs internet, can fail on throttling
 ```
 
 ## API
 
-### `GET /api/search`
+All endpoints are `GET` and return JSON unless noted. Invalid input returns `400`.
 
-Query params:
+| Endpoint | Parameters |
+|---|---|
+| `/api/health` | — (returns `version`, `mock`) |
+| `/api/search` | `q`, `platform=all\|google\|apple`, `country`, `lang`, `limit` |
+| `/api/asosearch` | `q`, `store=both\|google\|apple`, `country`, `lang`, `lite=1` (skip competitor probes + history) |
+| `/api/asosearch/history` | `q`, `store`, `country`, `lang` → daily snapshots incl. per-store rankings |
+| `/api/app-details` | `appId`, `platform`, `appId2`, `store=both`, `country`, `lang` |
+| `/api/reviews` | `appId`, `platform=google\|apple\|both`, `appPlatform`, `appId2`, `title`, `developer`, `country`, `lang` (`all` = multi-language), `max`, `sort`, filters: `stars`, `minRating`, `maxRating`, `allKeywords`, `anyKeyword`, `keyword`, `dateFrom`, `dateTo`, `version`, `minLength`, `replyOnly` |
+| `/api/reviews.csv` | Same as `/api/reviews`; CSV download |
+| `/api/reviews.full.stream` | `appId`, `platform`, `appPlatform`, `appId2`, `title`, `country` → NDJSON: `group` lines, then `done` |
+| `/api/reviews.full` | Same, as one JSON document |
 
-- `platform=google|apple|all`
-- `q=instagram`
-- `country=us`
-- `lang=en`
-- `limit=200` / configurable app-search result cap. Apple is capped at 200 per request; Google is best-effort through scraper/search-page results.
-
-### `GET /api/reviews`
-
-Query params:
-
-- `platform=google|apple|both`
-- `appId=com.instagram.android` or `appId=389801252`
-- `appPlatform=google|apple` — store the primary `appId` belongs to (only used with `platform=both`)
-- `title=Instagram` — used to auto-detect the counterpart store id (only used with `platform=both`)
-- `appId2=...` — optional override for the counterpart store id (only used with `platform=both`)
-- `country=us`
-- `lang=en`
-- `stars=1,2,3`
-- `sort=newest|rating|helpfulness`
-- `pages=1`
-- `max=200`
-- `dateFrom=2026-01-01`
-- `dateTo=2026-05-31`
-- `version=1.0.0`
-- `keyword=crash`
-- `minLength=20`
-- `replyOnly=true`
-
-### `GET /api/reviews.csv`
-
-Same query params as `/api/reviews`, but returns CSV.
-
-### `GET /api/asosearch`
-
-Query params:
-
-- `keyword=camera`
-- `country=us`
-- `lang=en`
-- `store=google|apple` (optional)
-
-Returns ranking apps per store plus popularity / difficulty / opportunity metrics and similar-keyword suggestions.
-
-## Notes
-
-- App Store review RSS usually returns a limited page of reviews per country/storefront.
-- Google Play language/country strongly impacts review availability.
-- "All reviews" is not guaranteed for huge apps because stores paginate, localize, throttle, and sometimes cap accessible results.
-- The **Use** button writes the selected platform + app id into the review filter form and highlights the selected result.
-- App search now requests broad result sets instead of a fixed top-12 list. "Every related app" still depends on what Apple/Google expose publicly for the query/country/language; the app does not invent hidden/private store results.
-- If Google search fails but you know the package id, paste it directly, for example `com.spotify.music` or `com.instagram.android`.
+`appPlatform` tells the server which store `appId` belongs to (inferred from the id format when omitted). `appId2` pins the listing on the other store; without it the counterpart is looked up by `title` (+ `developer`) and only accepted on a confident match.
 
 ## Patch notes
 
-### 1.5.0
+### 1.6.0
 
-- Packaged as a desktop app: native Electron shell with **Windows (NSIS), macOS (DMG), and Linux (AppImage)** installers via `electron-builder`.
-- Added **ASO keyword analysis**: keyword search across stores with computed popularity, difficulty, and opportunity metrics plus similar-keyword suggestions.
-
-### 1.4.0
-
-- Added **Both stores** mode: fetch Google Play + App Store reviews in parallel and see them merged in one comment table, tagged per store. The server auto-detects the matching app on the other store from the app title (capped by the in-memory cache), or you can override with a manual **Second app id**. Store lookup failures are surfaced in the summary instead of aborting the other store's fetch.
-
-### 1.3.0
-
-- Added dark mode with a manual sun/moon toggle (persisted in `localStorage`, defaults to the OS preference) plus a full visual refresh: colored rating badges, sticky review table, hover states, focus rings, busy status pulse, and review summary stats (average rating, reply count, app count).
-- Scraper hardening:
-  - Retries with exponential backoff + jitter on all Apple/Google HTML fetches (handles transient 429 / 5xx throttling and timeouts).
-  - Google Play HTML fallback now parses the page's embedded JSON payloads (escaped `\/store\/apps\/details` URLs) so more search results are recovered; detects and reports Google consent interstitials clearly.
-  - Google Play app details HTML fallback now reads `application/ld+json` metadata (name, developer, rating, icon) instead of returning blank fields.
-  - Google Play review pagination is retried and throttled between pages; Apple review dates are normalized to ISO and both `im:rating` and `rating` field shapes are handled.
-  - Added a small in-memory TTL cache for search and review fetches (5 min default) so repeated UI actions do not hammer the stores. Disable with `DISABLE_CACHE=1`; tune with `SEARCH_CACHE_TTL_MS` / `REVIEW_CACHE_TTL_MS`.
-
-### 1.2.0
-
-- Fixed **Use** button wiring by replacing fragile serialized JSON attributes with delegated plain data attributes.
-- Added selected-result feedback and filter-panel highlight after using an app result.
-- Added broad app-search cap control: default 200 per store, Google max 250, Apple max 200.
-- Search API no longer slices combined Google/App Store results down to a tiny top set.
-- Added frontend static regression tests for the Use button and broad search cap.
+- **Security**: fixed path traversal in rank-history writes (`store` parameter), a crash on malformed `Host` headers, CSRF/DNS-rebinding exposure of the local API, CSV formula injection and a broken CSV quote in full-data exports; added CSP and security headers, Electron sandboxing, navigation/permission lockdown and an `http(s)`-only external-link allowlist; upgraded Electron 31 → 44 and electron-builder 24 → 26 (0 known vulnerabilities).
+- **Correctness**: "All stores" now really fetches both stores (the app's store and known counterpart are sent to the server); the Add-app modal searches both stores; ranks come from real search order (they used to follow request completion order); Position is your app's rank instead of an average; history is keyed by country and language, one snapshot per day, and no longer collides for non-Latin keywords; counterpart matching no longer falls back to unrelated apps; unrated listings no longer drag ratings down; duplicate reviews are removed by store review id; App Store reviews are fetched once per storefront; "Show more", Escape handling and stale-response races fixed.
+- **Performance**: shared, size-bounded cache with request coalescing; far fewer store requests per keyword analysis (App Store search already carries listing details, similar-keyword rows skip competitor probes, HTML fallback only when needed); review filtering is instant and local.
+- **UX**: Keywords/Reviews tabs with a contextual filter bar, store column and match highlighting in reviews, multi-app comparison, review navigation with ←/→, toasts with undo, keyboard support and screen-reader labels throughout, trend charts, better empty/error states with retry, dark-mode flash fix, native Edit menu on macOS.
+- One shared API router for the web server and the desktop app (the desktop app was missing the history route).

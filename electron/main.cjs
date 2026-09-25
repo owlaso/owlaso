@@ -1,15 +1,17 @@
-const { app, BrowserWindow, protocol, net, shell, Menu, nativeTheme, ipcMain } = require('electron');
+const { app, BrowserWindow, protocol, net, shell, Menu, nativeTheme, ipcMain, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
 let mainWindow = null;
 const publicDir = path.resolve(__dirname, '..', 'public');
+const APP_ORIGIN = 'app://app';
 
-// ── Remove default menu (File/Edit/View/Window/Help) ───────────
-Menu.setApplicationMenu(null);
+// Rank history must live in the per-user data dir: next to the code it would land
+// inside the (read-only) app.asar of a packaged build and silently never persist.
+process.env.RANK_HISTORY_DIR ||= path.join(app.getPath('userData'), 'rank-history');
 
-// Force system theme following — auto-switches when OS theme changes.
+// Follow the OS theme; the renderer applies the user's explicit choice on top.
 nativeTheme.themeSource = 'system';
 
 // Register a privileged custom scheme so the renderer can use fetch() against it.
@@ -26,194 +28,112 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-// ── Response Helpers ────────────────────────────────────────────
-function jsonResponse(status, payload) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-    },
-  });
-}
-
-function textResponse(status, body, contentType) {
-  return new Response(body, {
-    status,
-    headers: { 'content-type': contentType, 'cache-control': 'no-store' },
-  });
+// ── Menu ────────────────────────────────────────────────────────
+// No menu bar on Windows/Linux. macOS needs the standard app/Edit menus, otherwise
+// Cmd+C / Cmd+V / Cmd+A / Cmd+Q do nothing in text fields.
+function installMenu() {
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: 'appMenu' },
+    { role: 'editMenu' },
+    { role: 'windowMenu' },
+  ]));
 }
 
 // ── Static Path Resolution (traversal-safe) ─────────────────────
 function resolvePublicPath(pathname) {
-  let decoded = '/';
-  try { decoded = decodeURIComponent(pathname || '/'); } catch { decoded = '/'; }
+  let decoded;
+  try { decoded = decodeURIComponent(pathname || '/'); } catch { return null; }
+  if (decoded.includes('\0')) return null;
   const posix = path.posix.normalize(decoded).replace(/^\/+/u, '');
-  const requested = posix === '' ? 'index.html' : posix;
-  const absolute = path.resolve(publicDir, requested);
-  if (!absolute.startsWith(publicDir + path.sep) && absolute !== publicDir) return null;
+  const absolute = path.resolve(publicDir, posix === '' ? 'index.html' : posix);
+  if (!absolute.startsWith(publicDir + path.sep)) return null;
   return absolute;
 }
 
-// ── Theme IPC ───────────────────────────────────────────────────
-function sendThemeToRenderer() {
-  if (!mainWindow) return;
-  const dark = nativeTheme.shouldUseDarkColors;
-  mainWindow.webContents.send('theme-change', dark ? 'dark' : 'light');
+function isHttpUrl(value) {
+  try {
+    const { protocol: scheme } = new URL(value);
+    return scheme === 'https:' || scheme === 'http:';
+  } catch {
+    return false;
+  }
 }
 
-// ── API Routing (runs entirely in the main process) ─────────────
+// ── API (shared router with the web server, runs in the main process) ─────
+let routerPromise = null;
+function loadRouter() {
+  routerPromise ||= import('../src/api.js');
+  return routerPromise;
+}
+
 async function handleApi(url) {
-  const p = url.pathname;
-  try {
-    if (p === '/api/health') {
-      return jsonResponse(200, {
-        ok: true,
-        mock: process.env.MOCK_STORE_DATA === '1',
-        time: new Date().toISOString(),
-        node: process.version,
+  const { handleApiRequest } = await loadRouter();
+  const result = await handleApiRequest(url);
+  const headers = { 'content-type': result.contentType, 'cache-control': 'no-store', ...result.headers };
+  if (!result.ndjson) return new Response(result.body, { status: result.status, headers });
+
+  // NDJSON stream; cancelling the renderer's fetch aborts the background work.
+  const controller = new AbortController();
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(streamCtrl) {
+      const write = (obj) => {
+        if (controller.signal.aborted) return;
+        try { streamCtrl.enqueue(encoder.encode(`${JSON.stringify(obj)}\n`)); } catch { controller.abort(); }
+      };
+      result.ndjson(write, controller.signal).finally(() => {
+        try { streamCtrl.close(); } catch { /* already closed */ }
       });
-    }
-
-    const query = Object.fromEntries(url.searchParams.entries());
-
-    if (p === '/api/asosearch') {
-      const { analyzeKeyword } = await import('../src/aso.js');
-      const result = await analyzeKeyword({
-        keyword: query.q || query.keyword,
-        store: query.store || 'both',
-        country: query.country || 'us',
-        lang: query.lang || 'en',
-        limit: Number.parseInt(query.limit, 10) || 12,
-      });
-      return jsonResponse(200, result);
-    }
-
-    if (p === '/api/app-details') {
-      const { fetchGoogleAppDetails, fetchAppleAppDetails, searchGoogleApps, searchAppleApps } = await import('../src/providers.js');
-      const platform = query.platform === 'apple' ? 'apple' : 'google';
-      const appId = String(query.appId || '').trim();
-      if (!appId) return jsonResponse(400, { error: 'appId is required.' });
-      let primary;
-      let counterpart = null;
-      if (platform === 'apple' && /^\d+$/u.test(appId)) {
-        primary = await fetchAppleAppDetails({ appId, country: query.country || 'us' });
-      } else {
-        primary = await fetchGoogleAppDetails({ appId, country: query.country || 'us', lang: query.lang || 'en' });
-      }
-      // Try to merge the same app from the other store (when title is known).
-      if (primary && primary.title) {
-        try {
-          const rows = platform === 'apple'
-            ? await searchGoogleApps({ q: primary.title, country: query.country || 'us', lang: query.lang || 'en', limit: 8 })
-            : await searchAppleApps({ q: primary.title, country: query.country || 'us', lang: query.lang || 'en', limit: 8 });
-          const key = primary.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const match = rows.map((r) => ({ r, k: String(r.title || '').toLowerCase().replace(/[^a-z0-9]/g, '') }))
-            .find(({ r, k }) => k === key || (k && k.includes(key)) || (key && k.includes(key)));
-          if (match) {
-            counterpart = platform === 'apple'
-              ? await fetchGoogleAppDetails({ appId: match.r.appId, country: query.country || 'us', lang: query.lang || 'en' })
-              : await fetchAppleAppDetails({ appId: match.r.appId, country: query.country || 'us' });
-          }
-        } catch { counterpart = null; }
-      }
-      return jsonResponse(200, { primary, counterpart, merged: !query.store || query.store === 'both' });
-    }
-
-    if (p === '/api/search') {
-      const { searchApps } = await import('../src/providers.js');
-      const rows = await searchApps(query);
-      return jsonResponse(200, { results: rows });
-    }
-
-    if (p === '/api/reviews') {
-      const { fetchReviews, fetchReviewsMulti } = await import('../src/providers.js');
-      const multi = query.multi === '1' || query.provider === 'multi' ||
-        query.languages === 'all' || String(query.lang || '') === 'all';
-      const payload = multi
-        ? await fetchReviewsMulti(query)
-        : await fetchReviews(query);
-      return jsonResponse(200, payload);
-    }
-
-    if (p === '/api/reviews.full') {
-      const { fetchAllReviews } = await import('../src/providers.js');
-      const payload = await fetchAllReviews(query);
-      return jsonResponse(200, payload);
-    }
-
-    // NDJSON stream: one line per completed store×lang group, then a final
-    // "done" line. The renderer renders groups as they arrive; aborting the
-    // fetch cancels the stream and stops the background work.
-    if (p === '/api/reviews.full.stream') {
-      const { fetchAllReviewsStream } = await import('../src/providers.js');
-      const controller = new AbortController();
-      const encoder = new TextEncoder();
-      let cancelled = false;
-
-      const stream = new ReadableStream({
-        start(streamCtrl) {
-          const send = (obj) => {
-            if (cancelled) return;
-            try { streamCtrl.enqueue(encoder.encode(`${JSON.stringify(obj)}\n`)); } catch { cancelled = true; }
-          };
-          fetchAllReviewsStream(query, {
-            signal: controller.signal,
-            onGroup: (group) => send({ type: 'group', group }),
-          }).then((summary) => {
-            if (!cancelled) send({ type: 'done', ...summary });
-            try { streamCtrl.close(); } catch { /* already closed */ }
-          }).catch((error) => {
-            if (!cancelled) send({ type: 'error', error: error.message || String(error) });
-            try { streamCtrl.close(); } catch { /* already closed */ }
-          });
-        },
-        cancel() {
-          cancelled = true;
-          controller.abort();
-        },
-      });
-
-      return new Response(stream, {
-        status: 200,
-        headers: {
-          'content-type': 'application/x-ndjson; charset=utf-8',
-          'cache-control': 'no-store',
-        },
-      });
-    }
-
-    if (p === '/api/reviews.csv') {
-      const { fetchReviews } = await import('../src/providers.js');
-      const { toCsv } = await import('../src/filters.js');
-      const payload = await fetchReviews(query);
-      return textResponse(200, toCsv(payload.reviews), 'text/csv; charset=utf-8');
-    }
-
-    return jsonResponse(404, { error: 'API route not found.' });
-  } catch (error) {
-    return jsonResponse(500, { error: error.message || String(error) });
-  }
+    },
+    cancel() {
+      controller.abort();
+    },
+  });
+  return new Response(stream, { status: result.status, headers });
 }
 
 // ── Protocol Handler ────────────────────────────────────────────
 function registerProtocol() {
-  protocol.handle('app', (request) => {
+  protocol.handle('app', async (request) => {
     const url = new URL(request.url);
-
-    if (url.pathname.startsWith('/api/')) return handleApi(url);
-
-    const filePath = resolvePublicPath(url.pathname);
-    if (filePath && filePath !== publicDir) {
+    if (url.host !== 'app') return new Response('Not found', { status: 404 });
+    if (url.pathname.startsWith('/api/')) {
       try {
-        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-          return net.fetch(pathToFileURL(filePath).toString());
-        }
-      } catch { /* fall through to SPA fallback */ }
+        return await handleApi(url);
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error.message || String(error) }), { status: 500, headers: { 'content-type': 'application/json; charset=utf-8' } });
+      }
     }
 
+    const filePath = resolvePublicPath(url.pathname);
+    if (!filePath) return new Response('Forbidden', { status: 403 });
+    try {
+      if (fs.statSync(filePath).isFile()) return net.fetch(pathToFileURL(filePath).toString());
+    } catch { /* not a file */ }
+    if (path.extname(url.pathname)) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(path.join(publicDir, 'index.html')).toString());
   });
+}
+
+// ── Hardening ───────────────────────────────────────────────────
+function hardenContents(contents) {
+  // Links open in the default browser — but only real web links. shell.openExternal
+  // with file:, smb:, ms-*: … URLs is a known code-execution vector.
+  contents.setWindowOpenHandler(({ url }) => {
+    if (isHttpUrl(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  contents.on('will-navigate', (event, legacyUrl) => {
+    const url = event.url || legacyUrl || '';
+    if (url.startsWith(`${APP_ORIGIN}/`)) return;
+    event.preventDefault();
+    if (isHttpUrl(url)) shell.openExternal(url);
+  });
+  contents.on('will-attach-webview', (event) => event.preventDefault());
 }
 
 // ── Window ──────────────────────────────────────────────────────
@@ -224,17 +144,20 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     title: 'OwlASO',
-    backgroundColor: '#f5f5f7',
+    // Match the theme so dark-mode users don't get a white flash on launch.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#2c2c2e' : '#f5f5f7',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
+      webviewTag: false,
+      spellcheck: false,
     },
   });
 
-  mainWindow.loadURL('app://app/index.html');
+  mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -248,29 +171,44 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+}
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: 'deny' };
-  });
+function sendThemeToRenderer() {
+  if (!mainWindow) return;
+  mainWindow.webContents.send('theme-change', nativeTheme.shouldUseDarkColors ? 'dark' : 'light');
 }
 
 // ── App Lifecycle ───────────────────────────────────────────────
-app.whenReady().then(() => {
-  registerProtocol();
-  createWindow();
-
-  nativeTheme.on('updated', sendThemeToRenderer);
-
-  ipcMain.handle('get-system-theme', () => {
-    return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
   });
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
+  app.whenReady().then(() => {
+    installMenu();
+    // The app needs no camera, microphone, notifications, geolocation…
+    session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    session.defaultSession.setPermissionCheckHandler(() => false);
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+    ipcMain.handle('get-system-theme', () => (nativeTheme.shouldUseDarkColors ? 'dark' : 'light'));
+    nativeTheme.on('updated', sendThemeToRenderer);
+
+    registerProtocol();
+    createWindow();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+
+  // Applies to every webContents, the main window's included.
+  app.on('web-contents-created', (_event, contents) => hardenContents(contents));
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+}

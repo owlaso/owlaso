@@ -4,6 +4,12 @@ import assert from 'node:assert/strict';
 // ── ASO analysis (mock mode) ─────────────────────────────────────────────────
 
 process.env.MOCK_STORE_DATA = '1';
+// Keep test runs from writing rank history into the repo's data/ folder.
+const fs = await import('node:fs');
+const os = await import('node:os');
+const path = await import('node:path');
+process.env.RANK_HISTORY_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'owlaso-flow-'));
+test.after(() => fs.rmSync(process.env.RANK_HISTORY_DIR, { recursive: true, force: true }));
 const { analyzeKeyword } = await import('../src/aso.js');
 
 test('analyzeKeyword returns correct shape in mock mode', async () => {
