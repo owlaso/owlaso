@@ -113,3 +113,16 @@ test('lite analyses keep history when asked to (per-country comparison)', async 
   const { json } = await call('/api/asosearch/history?q=tracked%20lite&country=tr');
   assert.equal(json.snapshots.length, 1);
 });
+
+test('full-data stream announces a plan, reports per-source progress and supports depth', async () => {
+  const result = await handleApiRequest(new URL('http://localhost/api/reviews.full.stream?appId=com.instagram.android&platform=both&depth=2'));
+  const lines = [];
+  await result.ndjson((obj) => lines.push(obj), new AbortController().signal);
+  const plan = lines.find((l) => l.type === 'plan');
+  assert.ok(plan && plan.total > 0 && plan.sources.length === plan.total);
+  const progress = lines.filter((l) => l.type === 'progress');
+  assert.equal(progress.at(-1).done, plan.total);
+  assert.ok(progress.every((p) => p.source?.id && ['ok', 'failed'].includes(p.source.status)));
+  assert.equal(lines.at(-1).depth, 2);
+  assert.equal(lines.at(-1).type, 'done');
+});

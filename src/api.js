@@ -128,12 +128,15 @@ const routes = {
   '/api/reviews.full.stream': async (q) => ({
     status: 200,
     contentType: 'application/x-ndjson; charset=utf-8',
-    // One line per completed store×language group, then a final "done" (or "error") line.
+    // NDJSON: a "plan" line (sources to read), then "group" (reviews) and "progress"
+    // lines as sources finish, then a final "done" (or "error") line.
     ndjson: async (write, signal) => {
       try {
         const summary = await fetchAllReviewsStream(reviewParams(q), {
           signal,
+          onPlan: (plan) => write({ type: 'plan', ...plan }),
           onGroup: (group) => write({ type: 'group', group }),
+          onProgress: (progress) => write({ type: 'progress', ...progress }),
         });
         write({ type: 'done', ...summary });
       } catch (error) {

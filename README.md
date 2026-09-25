@@ -7,7 +7,7 @@
 - **Keywords** — popularity, difficulty and opportunity scores, the apps ranking for a keyword, similar keywords, and the keywords competitors also rank for
 - **Rank tracking** — the position of the app selected in the sidebar for every keyword, per store, with a daily history (trend arrows and charts)
 - **Reviews** — both stores in one table (store column per review), instant keyword/star filtering with highlighted matches, compare up to 5 apps (Ctrl/⌘-click)
-- **Full data** — every reachable review across stores and languages, streamed as it loads, with rating distribution and top terms
+- **Full data explorer** — every reachable review across stores and languages, streamed with live progress; click-to-filter rating / store / language facets, search, sort, "what users complain about" vs "what users love" terms, per-source status and a "Go deeper" option
 - **Export** — CSV (UTF-8 with BOM, formula-injection safe) for keywords, reviews and full data; JSON for full data
 - **Desktop** — Windows (NSIS), macOS (DMG) and Linux (AppImage) installers via Electron; light/dark/system theme
 
@@ -58,7 +58,7 @@ Outputs land in `dist/`.
 
 1. **Add apps** — click **+** in the sidebar and search by name, package name (`com.spotify.music`) or App Store id (`324684580`). Apps found on both stores are merged into one entry.
 2. **Keywords** — type a keyword and press Enter. The analyzed keyword and 5 similar ones are scored; the **Position** column shows where the selected app ranks on each store. Click a row for details, trend charts and competitor keywords.
-3. **Reviews** — select an app. Filter by keyword (all words must match) and star range instantly; change store, country, language or the fetch size to load new data. **Load more** raises the fetch size. **Full data** pulls everything in every language.
+3. **Reviews** — select an app. Filter by keyword (all words must match) and star range instantly; change store, country, language or the fetch size to load new data. **Load more** raises the fetch size. **Full data** pulls everything in every language into an explorer: click a star bar, store or language to filter, search, sort (newest, lowest rating, most helpful…), hide very short reviews, and read the distinctive complaint/praise terms. When Google Play has more than was read, **Go deeper** raises the per-language limit (1,000 → 2,500 → 5,000). Export CSV exports exactly the filtered list.
 4. **All countries** — pick *All countries* in the country picker.
    - *Keywords*: the keyword is analyzed in all 20 storefronts, one row per country, sorted by opportunity (best markets first). Click a row → **Open in …** for that country's history and competitor keywords.
    - *Reviews / Full data*: reads every App Store storefront (Apple keeps reviews per country) plus every Google Play language (Google keeps reviews per language, not per country). Each review shows where it came from.

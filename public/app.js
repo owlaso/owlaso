@@ -3,6 +3,7 @@
 // ============================================================
 import { toCsv, REVIEW_CSV_HEADERS } from './lib/csv.js';
 import { initTooltips, createTour, createHints, isVisible } from './lib/guide.js';
+import { distinctiveTerms, nameTokens } from './lib/terms.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -1901,17 +1902,30 @@ function selectAsoApp(asoApp) {
   selectSidebarApp(tracked);
 }
 
-// --- Full data (every language × every store, streamed) ---
-const fullDataCtl = { open: false, payload: null, controller: null, shown: FULL_DATA_RENDER_STEP, term: '' };
+// --- Full data explorer (every language × every store, streamed) ---
+// Layout: header (progress, summary, notices) + insights column (clickable
+// facets and terms) + review list with search / sort / toggles. The toolbar is
+// built once per open so typing is never interrupted by streaming updates.
+const SHORT_REVIEW_CHARS = 20;
+const FULL_SORTS = {
+  newest: { label: 'Newest first', cmp: byDateDesc },
+  oldest: { label: 'Oldest first', cmp: (a, b) => (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0) },
+  'rating-low': { label: 'Lowest rating', cmp: (a, b) => num(a.rating) - num(b.rating) || byDateDesc(a, b) },
+  'rating-high': { label: 'Highest rating', cmp: (a, b) => num(b.rating) - num(a.rating) || byDateDesc(a, b) },
+  helpful: { label: 'Most helpful', cmp: (a, b) => num(b.helpful) - num(a.helpful) || byDateDesc(a, b) },
+  longest: { label: 'Longest', cmp: (a, b) => String(b.text || '').length - String(a.text || '').length },
+};
 
-function roundToKShort(v) {
-  return roundToK(v);
+function defaultFullFilters() {
+  return { q: '', stars: new Set(), store: '', source: '', sort: 'newest', hideShort: false, withReply: false };
 }
+
+const fullDataCtl = { open: false, payload: null, controller: null, shown: FULL_DATA_RENDER_STEP, filters: defaultFullFilters(), derived: null, list: [], showAllSources: false };
 
 function fullDataReviews(payload) {
   const out = [];
   for (const grp of payload.groups) {
-    for (const r of grp.reviews || []) out.push(r.lang || grp.lang === 'all' ? r : { ...r, lang: grp.lang });
+    for (const r of grp.reviews || []) out.push(r.lang || r.country || grp.lang === 'all' ? r : { ...r, lang: grp.lang });
   }
   return out.sort(byDateDesc);
 }
@@ -1931,121 +1945,272 @@ function computeStats(reviews) {
       if (to === null || d > to) to = d;
     }
   }
-  return { count: reviews.length, stars, avgRating: rated ? Math.round((sum / rated) * 10) / 10 : null, dateFrom: from, dateTo: to };
+  return { count: reviews.length, rated, stars, avgRating: rated ? Math.round((sum / rated) * 10) / 10 : null, dateFrom: from, dateTo: to };
 }
 
-function starDistribution(stars, total) {
-  return `<div class="star-dist" aria-label="Rating distribution">${[5, 4, 3, 2, 1].map((s) => {
-    const n = stars?.[s] || 0;
-    const pct = total ? Math.round((n / total) * 100) : 0;
-    return `<div class="star-dist-row"><span>${s}★</span><div class="star-dist-bar"><div style="width:${pct}%"></div></div><span class="muted">${pct}%</span></div>`;
-  }).join('')}</div>`;
+const sourceKeyOf = (r) => (r.country ? `country:${r.country}` : r.lang ? `lang:${r.lang}` : '');
+function sourceLabel(key) {
+  const [kind, code] = String(key).split(':');
+  return kind === 'country' ? countryName(code) : LANGUAGE_NAMES[code] || code;
+}
+
+// Heavy aggregates are recomputed only when new data arrives (term analysis at
+// most every 2 s while streaming, always once when finished).
+function fullDataDerived(payload) {
+  const cached = fullDataCtl.derived;
+  const key = `${payload.groups.length}:${payload.done}`;
+  if (cached && cached.payload === payload && cached.key === key) return cached;
+  const all = fullDataReviews(payload);
+  const perStore = {};
+  const perSource = new Map();
+  for (const r of all) {
+    perStore[r.platform] = (perStore[r.platform] || 0) + 1;
+    const k = sourceKeyOf(r);
+    if (k) perSource.set(k, (perSource.get(k) || 0) + 1);
+  }
+  let { complaints = [], praise = [], termsAt = 0 } = cached && cached.payload === payload ? cached : {};
+  if (payload.done || Date.now() - termsAt > 2000) {
+    const exclude = nameTokens(payload.appName);
+    const low = all.filter((r) => num(r.rating) >= 1 && num(r.rating) <= 2);
+    const high = all.filter((r) => num(r.rating) >= 4);
+    complaints = distinctiveTerms(low, high, { limit: 12, exclude });
+    praise = distinctiveTerms(high, low, { limit: 12, exclude });
+    termsAt = Date.now();
+  }
+  fullDataCtl.derived = {
+    payload, key, all, stats: computeStats(all), perStore,
+    perSource: [...perSource].sort((a, b) => b[1] - a[1]),
+    complaints, praise, termsAt,
+  };
+  return fullDataCtl.derived;
+}
+
+function filterFullData(all, f) {
+  const terms = splitTerms(f.q);
+  const list = all.filter((r) => {
+    if (f.store && r.platform !== f.store) return false;
+    if (f.source && sourceKeyOf(r) !== f.source) return false;
+    if (f.stars.size && !f.stars.has(Math.round(num(r.rating)))) return false;
+    if (f.withReply && !r.replyText) return false;
+    if (f.hideShort && `${r.title || ''} ${r.text || ''}`.trim().length < SHORT_REVIEW_CHARS) return false;
+    if (terms.length) {
+      const hay = `${r.title || ''} ${r.text || ''} ${r.author || ''}`.toLowerCase();
+      if (!terms.every((t) => hay.includes(t))) return false;
+    }
+    return true;
+  });
+  return f.sort === 'newest' ? list : list.sort((FULL_SORTS[f.sort] || FULL_SORTS.newest).cmp);
+}
+
+const fullFiltersActive = (f) => Boolean(f.q || f.stars.size || f.store || f.source || f.hideShort || f.withReply);
+
+function renderFullDataShell() {
+  $('#fullDataHeader').innerHTML = `
+    <div class="full-data-title">
+      <button type="button" class="pill-btn" data-full-data-action="close" aria-label="Back to reviews">← Back</button>
+      <div class="fd-title-text" data-fd="title"></div>
+      <div class="fd-progress" data-fd="progress" role="status" aria-live="polite"></div>
+      <div class="full-data-export-actions">
+        <button type="button" class="full-data-export-btn" data-full-data-action="export-csv" data-fd="export-csv">Export CSV</button>
+        <button type="button" class="full-data-export-btn" data-full-data-action="export-json" data-tip="Everything fetched, with per-source details">Export JSON</button>
+      </div>
+    </div>
+    <div class="fd-summary" data-fd="summary"></div>
+    <div class="fd-notices" data-fd="notices"></div>`;
+  $('#fullDataStores').innerHTML = `
+    <aside class="fd-insights" data-fd="insights" aria-label="Insights and filters"></aside>
+    <div class="fd-main">
+      <div class="fd-toolbar">
+        <input class="tb-search fd-search" id="fdSearch" type="search" placeholder="Search these reviews, e.g. crash login" aria-label="Search full data reviews" autocomplete="off" spellcheck="false">
+        <select class="tb-select" id="fdSort" aria-label="Sort reviews">${Object.entries(FULL_SORTS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select>
+        <label class="fd-toggle" data-tip="Hide reviews under ${SHORT_REVIEW_CHARS} characters (“ok”, “👍”, random letters)"><input type="checkbox" id="fdHideShort"> Hide very short</label>
+        <label class="fd-toggle"><input type="checkbox" id="fdWithReply"> With developer reply</label>
+      </div>
+      <div class="fd-chips" data-fd="chips"></div>
+      <div class="fd-count" data-fd="count"></div>
+      <div class="full-data-review-list" data-fd="list"></div>
+    </div>`;
+  const f = fullDataCtl.filters;
+  $('#fdSearch').value = f.q;
+  $('#fdSort').value = f.sort;
+  $('#fdHideShort').checked = f.hideShort;
+  $('#fdWithReply').checked = f.withReply;
+}
+
+const fdSlot = (name) => $(`#fullDataPanel [data-fd="${name}"]`);
+
+function facetButton(attr, value, label, count, total, active) {
+  const pct = total ? Math.round((count / total) * 100) : 0;
+  return `<button type="button" class="fd-facet${active ? ' active' : ''}" ${attr}="${escapeHtml(value)}" aria-pressed="${active}">
+    <span class="fd-facet-label">${label}</span>
+    <span class="fd-facet-bar"><span style="width:${pct}%"></span></span>
+    <span class="fd-facet-count">${roundToK(count)}</span>
+  </button>`;
+}
+
+function termButtons(terms, tone) {
+  if (!terms.length) return '<div class="fd-empty-note">Not enough reviews yet.</div>';
+  const q = fullDataCtl.filters.q.toLowerCase();
+  return `<div class="fd-terms">${terms.map((t) => `<button type="button" class="fd-term ${tone}${q === t.term ? ' active' : ''}" data-fd-term="${escapeHtml(t.term)}" data-tip="${t.count} review${t.count === 1 ? '' : 's'} mention “${escapeHtml(t.term)}”">${escapeHtml(t.term)}<span>${roundToK(t.count)}</span></button>`).join('')}</div>`;
 }
 
 function renderFullData() {
   const payload = fullDataCtl.payload;
-  if (!payload) return;
-  const header = $('#fullDataHeader');
-  const storesEl = $('#fullDataStores');
-  const all = fullDataReviews(payload);
-  const terms = splitTerms(fullDataCtl.term);
-  const list = terms.length
-    ? all.filter((r) => terms.every((t) => `${r.title || ''} ${r.text || ''}`.toLowerCase().includes(t)))
-    : all;
-  const g = computeStats(all);
-  const topTerms = payload.global?.topTerms || [];
-  const errors = payload.errors || [];
-  const warnings = payload.warnings || [];
+  if (!payload || !fdSlot('title')) return;
+  const d = fullDataDerived(payload);
+  const f = fullDataCtl.filters;
+  const g = d.stats;
+  const statuses = [...(payload.sourceStatus?.values() || [])];
+  const failed = statuses.filter((s) => s.status === 'failed');
+  const googleCapped = statuses.filter((s) => s.platform === 'google' && s.capped);
+  const appleCapped = statuses.filter((s) => s.platform === 'apple' && s.capped);
 
-  header.innerHTML = `
-    <div class="full-data-title">
-      <button type="button" class="pill-btn" data-full-data-action="close" aria-label="Back to reviews">← Back</button>
-      <div>
-        <div class="full-data-name">${escapeHtml(payload.appName)}</div>
-        <div class="muted">Full data · ${escapeHtml(STORE_NAMES[payload.platform] || 'All stores')} · ${escapeHtml(payload.country === 'all' ? 'All countries' : payload.country.toUpperCase())}</div>
-      </div>
-      ${!payload.done ? `<span class="full-data-stream-status">Fetching… ${payload.groups.length} group${payload.groups.length === 1 ? '' : 's'} done</span>` : ''}
-      <div class="full-data-export-actions">
-        <button type="button" class="full-data-export-btn" data-full-data-action="export-csv" ${all.length ? '' : 'disabled'} title="Download every fetched review as CSV">Export CSV</button>
-        <button type="button" class="full-data-export-btn" data-full-data-action="export-json" ${all.length ? '' : 'disabled'} title="Download the structured result as JSON">Export JSON</button>
-      </div>
-    </div>
-    <div class="full-data-global-stats">
-      <div class="full-data-global-stat">
-        <span class="full-data-global-stat-label">Total reviews</span>
-        <span class="full-data-global-stat-value">${roundToKShort(g.count)}</span>
-      </div>
-      <div class="full-data-global-stat">
-        <span class="full-data-global-stat-label">Avg rating</span>
-        <span class="full-data-global-stat-value">${g.avgRating ?? '—'}${g.avgRating ? '<small>/5</small>' : ''}</span>
-      </div>
-      <div class="full-data-global-stat">
-        <span class="full-data-global-stat-label">Date range</span>
-        <span class="full-data-global-stat-value small">${g.dateFrom ? escapeHtml(absoluteDate(g.dateFrom)) : '—'} – ${g.dateTo ? escapeHtml(absoluteDate(g.dateTo)) : '—'}</span>
-      </div>
-      ${g.count ? starDistribution(g.stars, g.count) : ''}
-    </div>
-    ${topTerms.length ? `<div class="full-data-top-terms">
-        <span class="full-data-top-terms-label">Top terms</span>
-        ${topTerms.map((t) => `<button type="button" class="full-data-term-chip${fullDataCtl.term === t ? ' active' : ''}" data-full-data-term="${escapeHtml(t)}" aria-pressed="${fullDataCtl.term === t}">${escapeHtml(t)}</button>`).join('')}
-        ${fullDataCtl.term ? '<button type="button" class="link-btn" data-full-data-term="">Clear</button>' : ''}
-      </div>` : ''}
-    ${warnings.map((w) => `<div class="full-data-warn">${escapeHtml(w)}</div>`).join('')}
-    ${errors.length ? `<details class="full-data-error-bar"><summary>${errors.length} request${errors.length === 1 ? '' : 's'} failed — details</summary><ul>${errors.map((e) => `<li>${escapeHtml(e)}</li>`).join('')}</ul></details>` : ''}
-  `;
+  // Title + progress
+  fdSlot('title').innerHTML = `
+    <div class="full-data-name">${escapeHtml(payload.appName)}</div>
+    <div class="muted">Full data · ${escapeHtml(STORE_NAMES[payload.platform] || 'All stores')} · ${escapeHtml(payload.country === 'all' ? 'All countries' : countryName(payload.country))}${payload.depth > 1 ? ` · depth ${payload.depth}` : ''}</div>`;
+  const total = payload.plan?.total || 0;
+  const done = payload.progress?.done || 0;
+  fdSlot('progress').innerHTML = payload.done
+    ? `<span class="fd-done">${payload.stopped ? 'Stopped' : 'Done'} · ${roundToK(g.count)} reviews from ${statuses.filter((s) => s.status === 'ok').length} source${statuses.length === 1 ? '' : 's'}</span>`
+    : `<div class="fd-progress-bar"><span style="width:${total ? Math.round((done / total) * 100) : 5}%"></span></div>
+       <span class="fd-progress-text"><span class="inline-spinner" aria-hidden="true"></span>${total ? `Reading sources ${done} of ${total}` : 'Starting…'} · ${roundToK(g.count)} reviews so far</span>
+       <button type="button" class="link-btn" data-full-data-action="stop">Stop</button>`;
 
+  // Summary cards
+  fdSlot('summary').innerHTML = `
+    <div class="fd-card"><span class="fd-card-label">Reviews</span><span class="fd-card-value">${roundToK(g.count)}</span></div>
+    <div class="fd-card"><span class="fd-card-label">Avg rating</span><span class="fd-card-value">${g.avgRating ?? '—'}${g.avgRating ? '<small>/5</small>' : ''}</span></div>
+    <div class="fd-card"><span class="fd-card-label">1–2★ share</span><span class="fd-card-value ${g.rated && (g.stars[1] + g.stars[2]) / g.rated > 0.2 ? 'bad' : ''}">${g.rated ? Math.round(((g.stars[1] + g.stars[2]) / g.rated) * 100) : 0}<small>%</small></span></div>
+    <div class="fd-card"><span class="fd-card-label">Date range</span><span class="fd-card-value small">${g.dateFrom ? escapeHtml(absoluteDate(g.dateFrom)) : '—'} – ${g.dateTo ? escapeHtml(absoluteDate(g.dateTo)) : '—'}</span></div>
+    ${Object.entries(d.perStore).map(([p, n]) => `<div class="fd-card"><span class="fd-card-label">${STORE_ICON[p] || ''}${STORE_NAMES[p] || p}</span><span class="fd-card-value">${roundToK(n)}</span></div>`).join('')}`;
+
+  // Notices: limits, errors
+  const notices = [];
+  if (payload.done && googleCapped.length) {
+    notices.push(`<div class="fd-notice info"><span>Google Play has more reviews in ${googleCapped.length} language${googleCapped.length === 1 ? '' : 's'} (stopped at ${(payload.depthLimit || 1000).toLocaleString()} per language).</span>
+      ${payload.depth < (payload.maxDepth || 3) ? `<button type="button" class="pill-btn" data-full-data-action="deeper">Go deeper</button>` : '<span class="muted">Maximum depth reached.</span>'}</div>`);
+  }
+  if (payload.done && appleCapped.length) notices.push(`<div class="fd-notice info">App Store only shares the ~500 most recent reviews per country — ${appleCapped.length === 1 ? 'this storefront hit' : `${appleCapped.length} storefronts hit`} that limit.</div>`);
+  if (payload.stopped) notices.push('<div class="fd-notice warn">Stopped early — the numbers cover only what was fetched.</div>');
+  for (const w of payload.warnings) notices.push(`<div class="fd-notice warn">${escapeHtml(w)}</div>`);
+  if (failed.length || payload.errors.length) {
+    const lines = payload.errors.length ? payload.errors : failed.map((s) => `${STORE_NAMES[s.platform]} · ${sourceLabel(s.country ? `country:${s.country}` : `lang:${s.lang}`)}: ${s.error}`);
+    notices.push(`<details class="fd-notice error"><summary>${lines.length} source${lines.length === 1 ? '' : 's'} could not be read — details</summary><ul>${lines.map((e) => `<li>${escapeHtml(e)}</li>`).join('')}</ul></details>`);
+  }
+  fdSlot('notices').innerHTML = notices.join('');
+
+  // Insights column (facets + terms)
+  const starRows = [5, 4, 3, 2, 1].map((s) => facetButton('data-fd-star', s, `${s}★`, g.stars[s], g.rated, f.stars.has(s))).join('');
+  const stores = Object.entries(d.perStore);
+  const sources = fullDataCtl.showAllSources ? d.perSource : d.perSource.slice(0, 8);
+  const hasCountries = d.perSource.some(([k]) => k.startsWith('country:'));
+  const hasLangs = d.perSource.some(([k]) => k.startsWith('lang:'));
+  const sourceTitle = hasCountries && hasLangs ? 'Languages & App Store countries' : hasCountries ? 'App Store countries' : 'Languages';
+  fdSlot('insights').innerHTML = `
+    <section class="fd-section"><div class="fd-section-title">Rating <span class="muted">click to filter</span></div>${starRows}</section>
+    ${stores.length > 1 ? `<section class="fd-section"><div class="fd-section-title">Store</div>${stores.map(([p, n]) => facetButton('data-fd-store', p, `${STORE_ICON[p] || ''}${STORE_NAMES[p] || p}`, n, g.count, f.store === p)).join('')}</section>` : ''}
+    ${d.perSource.length > 1 ? `<section class="fd-section"><div class="fd-section-title">${sourceTitle}</div>${sources.map(([k, n]) => facetButton('data-fd-source', k, `${k.startsWith('country:') ? `${STORE_ICON.apple}${flagImg(k.slice(8), '16x12')}` : STORE_ICON.google}${escapeHtml(sourceLabel(k))}`, n, g.count, f.source === k)).join('')}
+      ${d.perSource.length > 8 ? `<button type="button" class="link-btn fd-more" data-full-data-action="toggle-sources">${fullDataCtl.showAllSources ? 'Show fewer' : `Show all ${d.perSource.length}`}</button>` : ''}</section>` : ''}
+    <section class="fd-section"><div class="fd-section-title" data-tip="Words that appear far more often in 1–2★ reviews than in 4–5★ ones">What users complain about</div>${termButtons(d.complaints, 'bad')}</section>
+    <section class="fd-section"><div class="fd-section-title" data-tip="Words that appear far more often in 4–5★ reviews than in 1–2★ ones">What users love</div>${termButtons(d.praise, 'good')}</section>
+    ${statuses.length ? `<details class="fd-section fd-sources"><summary class="fd-section-title">Sources (${statuses.filter((s) => s.status === 'ok').length}/${payload.plan?.total || statuses.length})</summary>
+      ${statuses.map((s) => `<div class="fd-source ${s.status}"><span>${STORE_ICON[s.platform] || ''}${escapeHtml(sourceLabel(s.country ? `country:${s.country}` : `lang:${s.lang}`))}</span><span>${s.status === 'failed' ? 'failed' : s.status === 'pending' ? '…' : `${roundToK(s.count)}${s.capped ? ' · more available' : ''}`}</span></div>`).join('')}
+    </details>` : ''}`;
+
+  renderFullDataList();
+}
+
+function renderFullDataList() {
+  const payload = fullDataCtl.payload;
+  if (!payload || !fdSlot('list')) return;
+  const d = fullDataDerived(payload);
+  const f = fullDataCtl.filters;
+  const list = filterFullData(d.all, f);
+  fullDataCtl.list = list;
+  const terms = splitTerms(f.q);
+  const filtered = fullFiltersActive(f);
+  const exportBtn = fdSlot('export-csv');
+  exportBtn.textContent = filtered ? `Export ${list.length.toLocaleString()} (CSV)` : 'Export CSV';
+  exportBtn.disabled = !(filtered ? list.length : d.all.length);
+  exportBtn.dataset.tip = filtered ? 'Downloads only the reviews matching your filters' : 'Downloads every fetched review';
+
+  const chips = [];
+  if (f.q) chips.push(['q', `“${f.q}”`]);
+  for (const s of [...f.stars].sort()) chips.push([`star:${s}`, `${s}★`]);
+  if (f.store) chips.push(['store', STORE_NAMES[f.store]]);
+  if (f.source) chips.push(['source', sourceLabel(f.source)]);
+  if (f.hideShort) chips.push(['hideShort', 'No very short']);
+  if (f.withReply) chips.push(['withReply', 'With reply']);
+  fdSlot('chips').innerHTML = chips.length
+    ? `${chips.map(([k, label]) => `<button type="button" class="fd-chip" data-fd-clear="${escapeHtml(k)}" aria-label="Remove filter ${escapeHtml(label)}">${escapeHtml(label)} <span aria-hidden="true">×</span></button>`).join('')}<button type="button" class="link-btn" data-fd-clear="all">Clear all</button>`
+    : '';
+  fdSlot('count').textContent = d.all.length
+    ? `${fullFiltersActive(f) ? `${list.length.toLocaleString()} matching of ${d.all.length.toLocaleString()}` : `${d.all.length.toLocaleString()} reviews`} · ${FULL_SORTS[f.sort]?.label.toLowerCase() || 'newest first'}`
+    : '';
+
+  const listEl = fdSlot('list');
   if (!list.length) {
-    storesEl.innerHTML = `<div class="full-data-empty-groups">${!payload.done ? '<span class="inline-spinner" aria-hidden="true"></span>Fetching reviews…' : all.length ? 'No reviews contain that term.' : 'No review data available.'}</div>`;
+    listEl.innerHTML = `<div class="full-data-empty-groups">${!payload.done && !d.all.length ? '<span class="inline-spinner" aria-hidden="true"></span>Fetching reviews…' : d.all.length ? 'No reviews match these filters. <button type="button" class="link-btn" data-fd-clear="all">Clear filters</button>' : 'No review data available.'}</div>`;
     return;
   }
-
-  const prevScroll = storesEl.scrollTop;
   const limit = Math.min(fullDataCtl.shown, FULL_DATA_RENDER_CAP);
   const shown = list.slice(0, limit);
   const more = list.length - shown.length;
-  const rows = shown.map((r) => `
-    <article class="full-data-review">
+  const cards = shown.map((r, i) => `
+    <article class="full-data-review" data-fd-review="${i}" tabindex="0" aria-label="Open review">
       <div class="full-data-review-head">
         <span class="full-data-review-rating">${starsHtml(r.rating)}</span>
         <span class="full-data-review-platform ${r.platform === 'apple' ? 'apple' : 'google'}">${escapeHtml(STORE_NAMES[r.platform] || r.platform)}</span>
-        <span class="full-data-review-author">${escapeHtml(r.author || 'Anonymous')}</span>
-      </div>
-      <div class="full-data-review-meta">
-        <span class="full-data-review-date" data-tip="${escapeHtml(absoluteDate(r.date, true))}">${relativeTime(r.date)}</span>
-        ${r.lang ? `<span>${escapeHtml(LANGUAGE_NAMES[r.lang] || r.lang)}</span>` : ''}
         ${r.country ? `<span class="review-country">${flagImg(r.country, '16x12')}${escapeHtml(countryName(r.country))}</span>` : ''}
+        ${r.lang ? `<span class="fd-meta">${escapeHtml(LANGUAGE_NAMES[r.lang] || r.lang)}</span>` : ''}
+        <span class="fd-meta" data-tip="${escapeHtml(absoluteDate(r.date, true))}">${relativeTime(r.date)}</span>
         ${r.version ? `<span class="full-data-review-version">v${escapeHtml(r.version)}</span>` : ''}
+        ${num(r.helpful) ? `<span class="fd-meta" data-tip="Found helpful">👍 ${roundToK(r.helpful)}</span>` : ''}
+        <span class="full-data-review-author">${escapeHtml(r.author || 'Anonymous')}</span>
       </div>
       ${r.title ? `<div class="full-data-review-title">${highlight(r.title, terms)}</div>` : ''}
       <div class="full-data-review-text">${highlight(r.text || '(No text)', terms)}</div>
-      ${r.replyText ? `<div class="full-data-review-reply">${escapeHtml(r.replyText)}</div>` : ''}
+      ${r.replyText ? `<div class="full-data-review-reply"><span>Developer reply</span>${escapeHtml(r.replyText)}</div>` : ''}
     </article>`).join('');
 
   let footer = '';
   if (more > 0) {
     footer = limit < FULL_DATA_RENDER_CAP
-      ? `<div class="full-data-show-more"><span class="full-data-count">+${more} more</span><button type="button" class="pill-btn" data-full-data-action="show-more">Show ${Math.min(FULL_DATA_SHOW_STEP, more)} more</button></div>`
-      : `<div class="full-data-show-more"><span class="full-data-count">Showing the first ${FULL_DATA_RENDER_CAP} of ${list.length} — export to get all of them.</span><button type="button" class="full-data-export-btn" data-full-data-action="export-csv">Export all (CSV)</button></div>`;
+      ? `<div class="full-data-show-more"><span class="full-data-count">${shown.length.toLocaleString()} of ${list.length.toLocaleString()} shown</span><button type="button" class="pill-btn" data-full-data-action="show-more">Show ${Math.min(FULL_DATA_SHOW_STEP, more)} more</button></div>`
+      : `<div class="full-data-show-more"><span class="full-data-count">Showing the first ${FULL_DATA_RENDER_CAP.toLocaleString()} of ${list.length.toLocaleString()} — export to get all of them.</span><button type="button" class="full-data-export-btn" data-full-data-action="export-csv">Export (CSV)</button></div>`;
   } else if (!payload.done) {
     footer = '<div class="full-data-group-footer"><span class="inline-spinner" aria-hidden="true"></span>Fetching more reviews…</div>';
   }
-  storesEl.innerHTML = `<div class="full-data-review-list">${rows}${footer}</div>`;
-  storesEl.scrollTop = prevScroll;
+  const scroller = $('#fullDataPanel .fd-main');
+  const prevScroll = scroller.scrollTop;
+  listEl.innerHTML = cards + footer;
+  scroller.scrollTop = prevScroll;
+}
+
+function setFullFilter(mutate, { listOnly = false } = {}) {
+  mutate(fullDataCtl.filters);
+  fullDataCtl.shown = FULL_DATA_RENDER_STEP;
+  $('#fullDataPanel .fd-main').scrollTop = 0;
+  if (listOnly) renderFullDataList();
+  else renderFullData();
 }
 
 function closeFullDataPanel({ render = true } = {}) {
   fullDataCtl.controller?.abort();
   fullDataCtl.controller = null;
   fullDataCtl.payload = null;
+  fullDataCtl.derived = null;
   if (!fullDataCtl.open) return;
   fullDataCtl.open = false;
+  document.body.classList.remove('full-data-open');
   $('#fullDataPanel').classList.add('hidden');
   $('#tableContainer').classList.remove('hidden');
   $('#reviewBar').classList.toggle('hidden', state.view !== 'reviews');
   if (render && state.view === 'reviews') renderReviewsView();
 }
 
-function openFullData() {
+function openFullData({ depth = 1, keepFilters = false } = {}) {
   const app = selectedApp();
   if (!app) {
     toast('Select an app in the sidebar first.', { tone: 'warn' });
@@ -2054,21 +2219,36 @@ function openFullData() {
   if (state.view !== 'reviews') setView('reviews');
   fullDataCtl.controller?.abort();
   const req = reviewRequest(app);
-  const payload = { appId: app.primaryAppId, appName: app.name, platform: state.filters.store, country: state.filters.country, groups: [], errors: [], warnings: [], done: false };
+  const payload = {
+    appId: app.primaryAppId, appName: app.name, platform: state.filters.store, country: state.filters.country,
+    depth, groups: [], errors: [], warnings: [], sourceStatus: new Map(), done: false,
+  };
   fullDataCtl.open = true;
+  document.body.classList.add('full-data-open');
   fullDataCtl.payload = payload;
+  fullDataCtl.derived = null;
   fullDataCtl.shown = FULL_DATA_RENDER_STEP;
-  fullDataCtl.term = '';
+  fullDataCtl.showAllSources = false;
+  if (!keepFilters) fullDataCtl.filters = defaultFullFilters();
   $('#tableContainer').classList.add('hidden');
   $('#reviewBar').classList.add('hidden');
   $('#fullDataPanel').classList.remove('hidden');
+  renderFullDataShell();
   renderFullData();
-  runFullDataStream(params({ appId: req.appId, platform: req.platform, appPlatform: req.appPlatform, appId2: req.appId2, title: req.title, developer: req.developer, country: req.country }), payload);
+  runFullDataStream(params({ appId: req.appId, platform: req.platform, appPlatform: req.appPlatform, appId2: req.appId2, title: req.title, developer: req.developer, country: req.country, depth }), payload);
 }
 
-// Consumes the /api/reviews.full.stream NDJSON response, rendering each group
-// as it arrives. The payload is bound per stream so an aborted stream can never
-// write into a newer one.
+function openFullDataReview(index) {
+  const reviews = fullDataCtl.list.slice(0, Math.min(fullDataCtl.shown, FULL_DATA_RENDER_CAP));
+  if (!reviews[index]) return;
+  const app = selectedApp();
+  state.__reviewData = { reviews, term: fullDataCtl.filters.q, apps: app ? [app] : [] };
+  openReviewModal(index);
+}
+
+// Consumes the /api/reviews.full.stream NDJSON response, rendering as sources
+// finish. The payload is bound per stream so an aborted stream can never write
+// into a newer one.
 async function runFullDataStream(query, payload) {
   const ctl = new AbortController();
   fullDataCtl.controller = ctl;
@@ -2111,22 +2291,31 @@ async function runFullDataStream(query, payload) {
     if (fullDataCtl.payload === payload) {
       payload.done = true;
       renderFullData();
+      scheduleHints();
     }
   }
 }
 
 function handleFullDataStreamMessage(payload, msg) {
   if (!msg || !msg.type) return;
-  if (msg.type === 'group' && msg.group) {
+  if (msg.type === 'plan') {
+    payload.plan = { total: msg.total, depth: msg.depth };
+    for (const s of msg.sources || []) payload.sourceStatus.set(s.id, { ...s, status: 'pending', count: 0 });
+  } else if (msg.type === 'progress') {
+    payload.progress = { done: msg.done, total: msg.total };
+    if (msg.source?.id) payload.sourceStatus.set(msg.source.id, msg.source);
+  } else if (msg.type === 'group' && msg.group) {
     payload.groups.push(msg.group);
   } else if (msg.type === 'done') {
     payload.done = true;
     payload.global = msg.global;
     payload.perStore = msg.perStore;
     payload.sources = msg.sources;
+    payload.maxDepth = msg.maxDepth;
+    payload.depthLimit = [1000, 2500, 5000][(msg.depth || 1) - 1];
     if (Array.isArray(msg.errors)) payload.errors.push(...msg.errors);
     if (Array.isArray(msg.warnings)) payload.warnings.push(...msg.warnings);
-    if (msg.truncated) payload.warnings.push('Stopped at 20,000 reviews to keep the result manageable.');
+    if (msg.truncated) payload.warnings.push('Stopped at the review ceiling for this depth to keep things responsive — export or narrow the store/country.');
   } else if (msg.type === 'error' && msg.error) {
     payload.errors.push(msg.error);
   }
@@ -2154,18 +2343,21 @@ function downloadCsv(filename, rows, headers) {
   toast(`Exported ${rows.length} row${rows.length === 1 ? '' : 's'} → ${filename}`, { tone: 'ok' });
 }
 
+// Exports what the list shows: the filtered set when filters are active, else everything.
 function exportFullDataCsv() {
   const payload = fullDataCtl.payload;
   if (!payload) return;
-  const rows = fullDataReviews(payload);
+  const filtered = fullFiltersActive(fullDataCtl.filters);
+  const rows = filtered ? fullDataCtl.list : fullDataDerived(payload).all;
   if (!rows.length) { toast('Nothing to export yet.'); return; }
-  downloadCsv(`full-data-${safeFileName(payload.appName)}-reviews.csv`, rows, REVIEW_CSV_HEADERS);
+  downloadCsv(`full-data-${safeFileName(payload.appName)}${filtered ? '-filtered' : ''}-reviews.csv`, rows, REVIEW_CSV_HEADERS);
 }
 
 function exportFullDataJson() {
   const payload = fullDataCtl.payload;
   if (!payload) return;
-  downloadBlob(`full-data-${safeFileName(payload.appName)}.json`, JSON.stringify(payload, null, 2), 'application/json');
+  const { sourceStatus, ...rest } = payload;
+  downloadBlob(`full-data-${safeFileName(payload.appName)}.json`, JSON.stringify({ ...rest, sources: [...sourceStatus.values()] }, null, 2), 'application/json');
 }
 
 function exportData() {
@@ -2255,28 +2447,85 @@ function initEvents() {
     if (e.target.closest('#loadMoreReviews')) loadMoreReviews();
   });
 
-  // Full-data panel (delegated — survives re-renders)
-  $('#fullDataPanel').addEventListener('click', (e) => {
-    const term = e.target.closest('[data-full-data-term]');
-    if (term) {
-      fullDataCtl.term = fullDataCtl.term === term.dataset.fullDataTerm ? '' : term.dataset.fullDataTerm;
-      fullDataCtl.shown = FULL_DATA_RENDER_STEP;
-      renderFullData();
+  // Full-data explorer (delegated — survives re-renders)
+  const panel = $('#fullDataPanel');
+  panel.addEventListener('click', (e) => {
+    const star = e.target.closest('[data-fd-star]');
+    if (star) {
+      const n = Number(star.dataset.fdStar);
+      setFullFilter((f) => { if (f.stars.has(n)) f.stars.delete(n); else f.stars.add(n); });
       return;
     }
+    const store = e.target.closest('[data-fd-store]');
+    if (store) { setFullFilter((f) => { f.store = f.store === store.dataset.fdStore ? '' : store.dataset.fdStore; }); return; }
+    const source = e.target.closest('[data-fd-source]');
+    if (source) { setFullFilter((f) => { f.source = f.source === source.dataset.fdSource ? '' : source.dataset.fdSource; }); return; }
+    const term = e.target.closest('[data-fd-term]');
+    if (term) {
+      setFullFilter((f) => { f.q = f.q.toLowerCase() === term.dataset.fdTerm ? '' : term.dataset.fdTerm; });
+      $('#fdSearch').value = fullDataCtl.filters.q;
+      return;
+    }
+    const clear = e.target.closest('[data-fd-clear]');
+    if (clear) {
+      const key = clear.dataset.fdClear;
+      setFullFilter((f) => {
+        if (key === 'all') Object.assign(f, defaultFullFilters(), { sort: f.sort });
+        else if (key.startsWith('star:')) f.stars.delete(Number(key.slice(5)));
+        else if (key === 'q') f.q = '';
+        else if (key === 'store' || key === 'source') f[key] = '';
+        else f[key] = false;
+      });
+      $('#fdSearch').value = fullDataCtl.filters.q;
+      $('#fdHideShort').checked = fullDataCtl.filters.hideShort;
+      $('#fdWithReply').checked = fullDataCtl.filters.withReply;
+      return;
+    }
+    const card = e.target.closest('[data-fd-review]');
+    if (card && !e.target.closest('a,button')) { openFullDataReview(Number(card.dataset.fdReview)); return; }
     const action = e.target.closest('[data-full-data-action]');
     if (!action) return;
     const kind = action.dataset.fullDataAction;
     if (kind === 'show-more') {
       fullDataCtl.shown += FULL_DATA_SHOW_STEP;
-      renderFullData();
+      renderFullDataList();
     } else if (kind === 'export-csv') {
       exportFullDataCsv();
     } else if (kind === 'export-json') {
       exportFullDataJson();
     } else if (kind === 'close') {
       closeFullDataPanel();
+    } else if (kind === 'deeper') {
+      openFullData({ depth: (fullDataCtl.payload?.depth || 1) + 1, keepFilters: true });
+    } else if (kind === 'stop') {
+      const payload = fullDataCtl.payload;
+      if (payload) payload.stopped = true;
+      fullDataCtl.controller?.abort();
+    } else if (kind === 'toggle-sources') {
+      fullDataCtl.showAllSources = !fullDataCtl.showAllSources;
+      renderFullData();
     }
+  });
+  panel.addEventListener('keydown', (e) => {
+    const card = e.target.closest?.('[data-fd-review]');
+    if (card && e.target === card && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      openFullDataReview(Number(card.dataset.fdReview));
+    }
+  });
+  let fdSearchTimer = null;
+  panel.addEventListener('search', (e) => {
+    if (e.target.id === 'fdSearch') setFullFilter((f) => { f.q = e.target.value.trim(); }, { listOnly: true });
+  });
+  panel.addEventListener('input', (e) => {
+    if (e.target.id !== 'fdSearch') return;
+    clearTimeout(fdSearchTimer);
+    fdSearchTimer = setTimeout(() => setFullFilter((f) => { f.q = e.target.value.trim(); }, { listOnly: true }), 150);
+  });
+  panel.addEventListener('change', (e) => {
+    if (e.target.id === 'fdSort') setFullFilter((f) => { f.sort = e.target.value; }, { listOnly: true });
+    else if (e.target.id === 'fdHideShort') setFullFilter((f) => { f.hideShort = e.target.checked; });
+    else if (e.target.id === 'fdWithReply') setFullFilter((f) => { f.withReply = e.target.checked; });
   });
 
   // Sidebar collapse toggle
@@ -2537,6 +2786,7 @@ function initEvents() {
       } else if (hints.activeId) {
         hints.dismiss();
       } else if (fullDataCtl.open) {
+        if (e.target.id === 'fdSearch' && e.target.value) return; // Esc clears the search first
         closeFullDataPanel();
       }
       return;

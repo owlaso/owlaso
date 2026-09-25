@@ -1,5 +1,6 @@
 import { applyReviewFilters } from './filters.js';
 import { badRequest } from './errors.js';
+import { topTerms } from '../public/lib/terms.js';
 
 const APPLE_SEARCH_URL = 'https://itunes.apple.com/search';
 const APPLE_LOOKUP_URL = 'https://itunes.apple.com/lookup';
@@ -1180,26 +1181,13 @@ export async function fetchReviewsAllCountries(params = {}) {
 
 // ── Full-data fetch (every language × every store) ────────────────────────
 
-const FULL_GOOGLE_MAX_PER_LANG = 1000;
-const FULL_TOTAL_CEILING = 20000;
+// depth 1/2/3 → Google reviews per language and overall ceiling ("Go deeper" in the UI).
+const FULL_DEPTH = [
+  { googlePerLang: 1000, ceiling: 20000 },
+  { googlePerLang: 2500, ceiling: 30000 },
+  { googlePerLang: 5000, ceiling: 40000 },
+];
 const FULL_CONCURRENCY = 6;
-
-const STOPWORDS = new Set([
-  // en
-  'the', 'and', 'this', 'that', 'with', 'from', 'have', 'were', 'they', 'your', 'which', 'will', 'app', 'apps', 'very', 'really', 'just', 'more', 'for', 'you', 'she', 'his', 'her', 'their', 'our', 'not', 'but', 'all', 'has', 'had', 'been', 'are', 'was', 'did', 'does', 'can', 'could', 'would', 'should', 'get', 'got', 'like', 'love', 'use', 'using', 'used', 'one', 'two', 'about', 'into', 'out', 'over', 'after', 'before', 'its', 'it’s', "it's", 'i’m', "i'm", "don't", 'don’t', 'when', 'there', 'what', 'even', 'also', 'than', 'then', 'only', 'some', 'good', 'great',
-  // tr
-  've', 'bir', 'bu', 'çok', 'ile', 'için', 'ama', 'gibi', 'daha', 'ben', 'sen', 'biz', 'siz', 'var', 'yok', 'olarak', 'olan', 'her', 'şey', 'kadar', 'sonra', 'önce', 'diye', 'hiç', 'veya', 'ancak', 'uygulama', 'uygulamayı', 'uygulamanın', 'güzel',
-  // de
-  'und', 'die', 'der', 'das', 'ist', 'nicht', 'ich', 'ein', 'eine', 'mit', 'den', 'auf', 'für', 'sich', 'von', 'sie', 'dem', 'auch', 'aber', 'sehr', 'wie', 'nur', 'noch', 'wenn', 'bei', 'man', 'mehr', 'kann', 'habe', 'hat', 'wird', 'oder', 'schon', 'immer',
-  // fr
-  'les', 'des', 'est', 'pas', 'que', 'qui', 'pour', 'dans', 'sur', 'elle', 'avec', 'mais', 'plus', 'très', 'tout', 'bien', 'mon', 'mes', 'application', 'appli', 'aux', 'sont', 'fait', 'être',
-  // es / pt / it
-  'los', 'las', 'del', 'una', 'por', 'con', 'para', 'pero', 'muy', 'más', 'como', 'esta', 'este', 'aplicación', 'todo', 'uma', 'não', 'com', 'mais', 'muito', 'mas', 'meu', 'minha', 'aplicativo', 'isso', 'esse', 'essa', 'está', 'tem', 'che', 'non', 'della', 'molto', 'più', 'gli', 'applicazione', 'anche', 'sono', 'questo', 'questa',
-  // nl / pl / ru
-  'het', 'een', 'van', 'dat', 'niet', 'voor', 'zijn', 'maar', 'ook', 'heel', 'wel', 'nog', 'dan', 'bij', 'aan', 'wat', 'geen', 'się', 'nie', 'jest', 'jak', 'ale', 'tak', 'aplikacja', 'aplikacji', 'bardzo', 'już', 'mnie', 'tylko', 'czy', 'что', 'это', 'как', 'все', 'так', 'его', 'очень', 'приложение', 'приложения', 'мне', 'при', 'для', 'когда', 'уже', 'нет', 'есть'
-]);
-const TERM_PATTERN = /\p{L}[\p{L}\p{M}'’-]*/gu;
-const NO_SPACE_SCRIPTS = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/u;
 
 function computeGroupStats(reviews) {
   const stars = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -1207,8 +1195,6 @@ function computeGroupStats(reviews) {
   let rated = 0;
   let dateFrom = null;
   let dateTo = null;
-  const termFreq = new Map();
-
   for (const r of reviews) {
     const s = Number(r.rating);
     if (Number.isInteger(s) && s >= 1 && s <= 5) {
@@ -1221,26 +1207,14 @@ function computeGroupStats(reviews) {
       if (dateFrom === null || d < dateFrom) dateFrom = d;
       if (dateTo === null || d > dateTo) dateTo = d;
     }
-    const seenInReview = new Set();
-    for (const word of `${r.title || ''} ${r.text || ''}`.toLowerCase().match(TERM_PATTERN) || []) {
-      if (word.length < 3 || word.length > 24 || STOPWORDS.has(word) || NO_SPACE_SCRIPTS.test(word) || seenInReview.has(word)) continue;
-      seenInReview.add(word); // count reviews mentioning a term, not repetitions
-      termFreq.set(word, (termFreq.get(word) || 0) + 1);
-    }
   }
-  const topTerms = [...termFreq.entries()]
-    .filter(([, n]) => n >= 2 || reviews.length < 20)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map((e) => e[0]);
-
   return {
     count: reviews.length,
     stars,
     avgRating: rated ? Math.round((sumRating / rated) * 10) / 10 : null,
     dateFrom: dateFrom === null ? null : new Date(dateFrom).toISOString(),
     dateTo: dateTo === null ? null : new Date(dateTo).toISOString(),
-    topTerms
+    topTerms: topTerms(reviews).map((t) => t.term),
   };
 }
 
@@ -1248,26 +1222,74 @@ export { computeGroupStats };
 
 // Streams reviews group by group (one group per store×language task as it
 // completes) so the UI renders early results while the rest keeps loading.
-function mockFullData(platform, appId, country, onGroup) {
-  const stores = platform === 'both' ? ['google', 'apple'] : [platform];
-  const groups = stores.map((store) => {
-    const rows = mockReviews(store, store === 'apple' ? '389801252' : appId).map((r) => (store === 'google' ? { ...r, lang: 'en' } : { ...r, country: country === 'all' ? 'us' : country }));
-    const lang = store === 'apple' ? 'all' : 'en';
-    return { platform: store, lang, langLabel: LANGUAGE_LABELS[lang], ...computeGroupStats(rows), reviews: rows, sources: [{ platform: store, appId }], meta: { mock: true } };
-  });
-  for (const group of groups) onGroup?.(group);
-  const global = computeGroupStats(groups.flatMap((g) => g.reviews));
-  return { appId, platform, country, sources: [], totalGroups: groups.length, totalReviews: global.count, global, perStore: {}, errors: [], warnings: [], aborted: false, truncated: false };
+// Deterministic multilingual demo reviews so the Full data explorer has
+// something realistic to show in MOCK_STORE_DATA mode.
+const MOCK_LINES = {
+  en: { bad: ['App crashes every time I export a photo', 'Subscription charged twice and no refund', 'Too many ads after the update', 'Watermark on every photo unless you pay', 'Freezes when I open the camera'], good: ['Filters look natural and smooth', 'Beautiful results with the slim tool', 'Editing is fast and the filters are natural', 'Smooth editor, natural skin tone'], mid: ['Decent editor but the export is slow', 'Nice filters, export quality could be better'] },
+  tr: { bad: ['Uygulama sürekli çöküyor, fotoğraf kaydedilmiyor', 'Abonelik iptal edilmiyor, param geri gelmedi', 'Reklamlar çok fazla', 'Filigran kaldırmak için ödeme istiyor'], good: ['Filtreler doğal duruyor', 'İnceltme aracı harika sonuç veriyor', 'Hızlı ve doğal filtreler'], mid: ['Fena değil ama kayıt yavaş'] },
+  es: { bad: ['La aplicación se cierra al exportar', 'Me cobraron la suscripción dos veces', 'Demasiados anuncios'], good: ['Filtros naturales y suaves', 'Resultados muy naturales'], mid: ['Está bien pero exportar es lento'] },
+  'pt-BR': { bad: ['O aplicativo trava ao salvar a foto', 'Cobraram a assinatura duas vezes', 'Muitos anúncios'], good: ['Filtros naturais e bonitos', 'Resultado natural no rosto'], mid: ['Razoável, mas a exportação demora'] },
+};
+
+function mockFullReviews(platform, appId, lang, country, count) {
+  const pool = MOCK_LINES[lang] || MOCK_LINES.en;
+  const rows = [];
+  for (let i = 0; i < count; i += 1) {
+    const seed = (i * 7919 + lang.length * 104729 + (country || '').length * 13) % 1000;
+    const rating = seed % 10 < 2 ? 1 : seed % 10 < 3 ? 2 : seed % 10 < 4 ? 3 : seed % 10 < 6 ? 4 : 5;
+    const bucket = rating <= 2 ? pool.bad : rating === 3 ? pool.mid : pool.good;
+    const text = seed % 17 === 0 ? 'ok' : bucket[seed % bucket.length];
+    rows.push({
+      id: `${platform}-${lang}-${country || 'x'}-${i}`,
+      platform, appId, rating,
+      title: seed % 3 === 0 ? text.split(' ').slice(0, 3).join(' ') : '',
+      text,
+      author: `user${seed}`,
+      date: new Date(Date.UTC(2026, 8, 20) - i * 86400000 * 3 - seed * 60000).toISOString(),
+      version: `2.${6 - Math.floor(i / 60)}.${seed % 5}`,
+      helpful: seed % 11,
+      replyText: seed % 13 === 0 ? 'Thanks for the feedback — a fix is on the way.' : '',
+      url: '',
+    });
+  }
+  return rows;
 }
 
-export async function fetchAllReviewsStream(params = {}, { onGroup, signal } = {}) {
+function mockFullData(platform, appId, country, depth, { onGroup, onPlan, onProgress }) {
+  const stores = platform === 'both' ? ['google', 'apple'] : [platform];
+  const appleCountries = country === 'all' ? ['us', 'tr', 'br'] : [country];
+  const sources = [];
+  for (const store of stores) {
+    if (store === 'apple') for (const c of appleCountries) sources.push({ id: `apple:${c}`, platform: 'apple', lang: null, country: c });
+    else for (const l of ['en', 'tr', 'es', 'pt-BR']) sources.push({ id: `google:${l}`, platform: 'google', lang: l, country: null });
+  }
+  onPlan?.({ total: sources.length, depth, sources });
+  const groups = sources.map((source, i) => {
+    const lang = source.lang || primaryLanguage(source.country);
+    const rows = mockFullReviews(source.platform, source.platform === 'apple' ? '389801252' : appId, lang, source.country, source.platform === 'apple' ? 60 : 90)
+      .map((r) => (source.platform === 'google' ? { ...r, lang: source.lang } : { ...r, country: source.country }));
+    const capped = source.platform === 'google' && depth < 3;
+    const group = { platform: source.platform, lang: source.lang || 'all', country: source.country, langLabel: LANGUAGE_LABELS[source.lang || 'all'], ...computeGroupStats(rows), reviews: rows, source: { ...source, count: rows.length, capped }, meta: { mock: true, moreAvailable: capped } };
+    onGroup?.(group);
+    onProgress?.({ done: i + 1, total: sources.length, source: { ...source, status: 'ok', count: rows.length, capped } });
+    return group;
+  });
+  const global = computeGroupStats(groups.flatMap((g) => g.reviews));
+  return { appId, platform, country, depth, sources: [], totalGroups: groups.length, totalReviews: global.count, global, perStore: {}, errors: [], warnings: [], aborted: false, truncated: false };
+}
+
+// Callbacks: onPlan({ total, sources }) once, onGroup(group) per finished source
+// with reviews, onProgress({ done, total, source }) after every source (ok or failed).
+export async function fetchAllReviewsStream(params = {}, { onGroup, onPlan, onProgress, signal } = {}) {
   const appId = String(params.appId || '').trim();
   if (!appId) throw badRequest('appId is required.');
   const allCountries = isAllCountries(params.country);
   const country = allCountries ? 'all' : cleanCountry(params.country);
   const platform = normalizePlatform(params.platform);
   const languages = languagesForCountry(allCountries ? 'us' : country);
-  if (process.env.MOCK_STORE_DATA === '1') return mockFullData(platform, appId, country, onGroup);
+  const depth = asInt(params.depth, 1, 1, FULL_DEPTH.length);
+  const { googlePerLang, ceiling } = FULL_DEPTH[depth - 1];
+  if (process.env.MOCK_STORE_DATA === '1') return mockFullData(platform, appId, country, depth, { onGroup, onPlan, onProgress });
 
   const { specs, warnings } = await resolveListings({ ...params, platform, country: allCountries ? 'us' : country, lang: languages[0] });
   if (!specs.length) throw badRequest(warnings[0] || 'No store listing available for this app.');
@@ -1282,14 +1304,21 @@ export async function fetchAllReviewsStream(params = {}, { onGroup, signal } = {
   for (const spec of specs) {
     if (spec.platform === 'apple') {
       for (const c of appleCountries) {
-        tasks.push({ spec, lang: 'all', country: c, producer: () => fetchAppleReviews({ appId: spec.appId, country: c, lang: primaryLanguage(c), max: APPLE_REVIEW_MAX }) });
+        tasks.push({ spec, lang: 'all', country: c, source: { id: `apple:${c}`, platform: 'apple', lang: null, country: c }, producer: () => fetchAppleReviews({ appId: spec.appId, country: c, lang: primaryLanguage(c), max: APPLE_REVIEW_MAX }) });
       }
     } else {
       for (const { lang, country: c } of googleTargets) {
-        tasks.push({ spec, lang, producer: () => fetchGoogleReviews({ appId: spec.appId, country: c, lang, max: FULL_GOOGLE_MAX_PER_LANG }) });
+        tasks.push({ spec, lang, source: { id: `google:${lang}`, platform: 'google', lang, country: null }, producer: () => fetchGoogleReviews({ appId: spec.appId, country: c, lang, max: googlePerLang }) });
       }
     }
   }
+  const totalTasks = tasks.length;
+  let finished = 0;
+  const report = (source) => {
+    finished += 1;
+    try { onProgress?.({ done: finished, total: totalTasks, source }); } catch { /* listener errors must not break the fetch */ }
+  };
+  try { onPlan?.({ total: totalTasks, depth, sources: tasks.map((t) => t.source) }); } catch { /* ignore */ }
 
   const emitted = [];
   const errors = [];
@@ -1314,7 +1343,7 @@ export async function fetchAllReviewsStream(params = {}, { onGroup, signal } = {
       for (const row of result.rows) {
         const key = reviewKey(row);
         if (seen.has(key)) continue;
-        if (total >= FULL_TOTAL_CEILING) {
+        if (total >= ceiling) {
           truncated = true;
           break;
         }
@@ -1323,6 +1352,12 @@ export async function fetchAllReviewsStream(params = {}, { onGroup, signal } = {
         rows.push(task.country ? { ...row, country: task.country } : { ...row, lang: task.lang });
       }
       const stats = computeGroupStats(rows);
+      // Capped = the store had more than we read: Google's per-language limit
+      // for this depth, or Apple's 10-page (~500 reviews) window.
+      const capped = task.spec.platform === 'apple'
+        ? (result.meta?.pagesFetched || 0) >= APPLE_REVIEW_MAX / APPLE_REVIEW_PAGE_SIZE
+        : Boolean(result.meta?.moreAvailable);
+      const source = { ...task.source, status: 'ok', count: rows.length, fetched: result.rows.length, capped };
       const group = {
         platform: task.spec.platform,
         lang: task.lang,
@@ -1330,6 +1365,7 @@ export async function fetchAllReviewsStream(params = {}, { onGroup, signal } = {
         langLabel: LANGUAGE_LABELS[task.lang] || task.lang,
         ...stats,
         reviews: rows,
+        source,
         sources: [{ platform: task.spec.platform, appId: task.spec.appId }],
         meta: result.meta
       };
@@ -1337,8 +1373,11 @@ export async function fetchAllReviewsStream(params = {}, { onGroup, signal } = {
       if (onGroup) {
         try { onGroup(group); } catch { /* listener errors must not break the fetch */ }
       }
+      report(source);
     } catch (err) {
-      errors.push(`${storeName(task.spec.platform)} ${task.lang === 'all' ? '' : `${LANGUAGE_LABELS[task.lang] || task.lang} `}(${task.spec.appId}): ${err.message || String(err)}`);
+      const message = err.message || String(err);
+      errors.push(`${storeName(task.spec.platform)} ${task.lang === 'all' ? '' : `${LANGUAGE_LABELS[task.lang] || task.lang} `}(${task.spec.appId}): ${message}`);
+      report({ ...task.source, status: 'failed', count: 0, error: message });
     }
   });
 
@@ -1354,6 +1393,8 @@ export async function fetchAllReviewsStream(params = {}, { onGroup, signal } = {
     appId,
     platform,
     country,
+    depth,
+    maxDepth: FULL_DEPTH.length,
     sources: specs.map(({ platform: p, appId: id, matchedTitle }) => ({ platform: p, appId: id, matchedTitle })),
     totalGroups: emitted.length,
     totalReviews: globalStats.count,
