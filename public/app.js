@@ -2,6 +2,7 @@
 // OwlASO — Dashboard Application Logic
 // ============================================================
 import { toCsv, REVIEW_CSV_HEADERS } from './lib/csv.js';
+import { initTooltips, createTour, createHints, isVisible } from './lib/guide.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -370,6 +371,7 @@ function closeModal(id) {
   const entry = index >= 0 ? modalStack.splice(index, 1)[0] : null;
   const back = entry?.returnFocus;
   if (back && document.contains(back)) back.focus({ preventScroll: true });
+  if (!modalStack.length) scheduleHints();
 }
 
 function topModal() { return modalStack.at(-1)?.id || null; }
@@ -675,7 +677,7 @@ function rankTrend(app, platform, history) {
 
 function positionCell(data, isMain) {
   const app = selectedApp();
-  if (!app) return '<span class="kw-pos muted" data-tip="Select an app in the sidebar to see where it ranks">—</span>';
+  if (!app) return '<span class="kw-pos muted" data-tip="No app selected — click one of your apps in the sidebar to see its rank here">—</span>';
   const positions = appPositions(app, data.rankings);
   if (!positions.length) return `<span class="kw-pos muted" data-tip="${escapeHtml(app.name)} is not listed on the analyzed store">n/a</span>`;
   return `<div class="kw-pos-list">${positions.map((p) => {
@@ -808,6 +810,7 @@ function renderAsoTable() {
   setTableHeaders('aso');
   $('#keywordTable').removeAttribute('aria-busy');
   $('#tableBody').innerHTML = state.aso.order.map((kw, i) => buildAsoRow(kw, i === 0)).join('');
+  scheduleHints();
 }
 
 function updateAsoRow(kw) {
@@ -817,6 +820,7 @@ function updateAsoRow(kw) {
   const hadFocus = rowEl.contains(document.activeElement);
   rowEl.outerHTML = buildAsoRow(kw, state.aso.order[0] === kw);
   if (hadFocus) $('#tableBody').querySelector(`tr[data-row-kw="${CSS.escape(kw)}"]`)?.focus();
+  scheduleHints();
 }
 
 function setTableHeaders(mode) {
@@ -836,12 +840,12 @@ function setTableHeaders(mode) {
   } else {
     table.classList.remove('multi-app');
     thead.innerHTML = `<tr>
-      <th class="kw-th kw-col-keyword" scope="col">Keyword / Topic</th>
-      <th class="kw-th kw-col-updated" scope="col">Last Updated</th>
-      <th class="kw-th kw-col-pop" scope="col" data-tip="Search demand estimate (0–100)">Popularity</th>
-      <th class="kw-th kw-col-diff" scope="col" data-tip="How hard it is to reach the top results (0–100)">Difficulty</th>
-      <th class="kw-th kw-col-pos" scope="col" data-tip="Rank of the app selected in the sidebar">Position</th>
-      <th class="kw-th kw-col-apps" scope="col">Apps in Ranking</th>
+      <th class="kw-th kw-col-keyword" scope="col" data-help="col-keyword">Keyword / Topic</th>
+      <th class="kw-th kw-col-updated" scope="col" data-help="col-updated">Last Updated</th>
+      <th class="kw-th kw-col-pop" scope="col" data-help="col-popularity">Popularity</th>
+      <th class="kw-th kw-col-diff" scope="col" data-help="col-difficulty">Difficulty</th>
+      <th class="kw-th kw-col-pos" scope="col" data-help="col-position">Position</th>
+      <th class="kw-th kw-col-apps" scope="col" data-help="col-apps">Apps in Ranking</th>
     </tr>`;
   }
 }
@@ -960,9 +964,9 @@ function openKeywordDetail(kw) {
   $('#detailTitle').textContent = `“${data.keyword}”`;
   $('#detailBody').innerHTML = `
     <div class="kw-hero">
-      <div class="kw-hero-card"><div class="value" data-c="${pctColor(num(m.popularity))}">${escapeHtml(m.popularity ?? '—')}</div><div class="label">Popularity</div></div>
-      <div class="kw-hero-card"><div class="value" data-c="${diffColor(num(m.difficulty))}">${escapeHtml(m.difficulty ?? '—')}</div><div class="label">Difficulty</div></div>
-      <div class="kw-hero-card"><div class="value">${escapeHtml(m.opportunity ?? '—')}</div><div class="label">Opportunity</div></div>
+      <div class="kw-hero-card" data-help="col-popularity"><div class="value" data-c="${pctColor(num(m.popularity))}">${escapeHtml(m.popularity ?? '—')}</div><div class="label">Popularity</div></div>
+      <div class="kw-hero-card" data-help="col-difficulty"><div class="value" data-c="${diffColor(num(m.difficulty))}">${escapeHtml(m.difficulty ?? '—')}</div><div class="label">Difficulty</div></div>
+      <div class="kw-hero-card" data-help="opportunity"><div class="value">${escapeHtml(m.opportunity ?? '—')}</div><div class="label">Opportunity</div></div>
       <div class="kw-hero-card"><div class="value">${roundToK(m.totalReviews)}</div><div class="label">Total ratings</div></div>
       <div class="kw-hero-card"><div class="value">${formatRating(m.avgRating)}</div><div class="label">Avg rating</div></div>
       <div class="kw-hero-card"><div class="value">${escapeHtml(m.adsFraction ?? 0)}%</div><div class="label">Apps with ads</div></div>
@@ -1212,6 +1216,7 @@ function applyReviewFilterState({ resetLimit = true } = {}) {
   if (state.view === 'reviews' && !fullDataCtl.open) {
     renderCommentTable(state.reviews.filtered, state.reviews.term, state.reviews.apps);
     renderReviewSummary();
+    scheduleHints();
   }
 }
 
@@ -1340,7 +1345,7 @@ function renderReviewSummary() {
     ...r.notes.map((m) => `<li class="summary-info">${escapeHtml(m)}</li>`),
   ];
   bar.innerHTML = `<span class="review-summary-text">${parts.join(' · ')}</span>` +
-    (next && r.moreAvailable ? `<button type="button" class="pill-btn" id="loadMoreReviews" data-tip="Fetch up to ${next} reviews per store">Load more</button>` : '') +
+    (next && r.moreAvailable ? `<button type="button" class="pill-btn" id="loadMoreReviews" data-help="load-more" data-next="${next}">Load more</button>` : '') +
     (lines.length ? `<ul class="review-summary-notes">${lines.join('')}</ul>` : '');
   bar.classList.remove('hidden');
 }
@@ -1449,7 +1454,7 @@ function appItemHtml(app, indented = false) {
   const icon = safeUrl(app.icon);
   const stores = (app.stores || []).map((s) => STORE_NAMES[s.platform]).join(' + ');
   return `<div class="app-item${active ? ' active' : ''}${selected ? ' selected' : ''}${indented ? ' app-item-indented' : ''}" role="listitem">
-    <div class="app-item-main" role="button" tabindex="0" data-app-id="${escapeHtml(app.id)}" draggable="true" aria-pressed="${selected}" data-tip="${escapeHtml(app.name)}">
+    <div class="app-item-main" role="button" tabindex="0" data-app-id="${escapeHtml(app.id)}" draggable="true" aria-pressed="${selected}" data-help="app-item" data-help-title="${escapeHtml(app.name)}" data-help-placement="right">
       <div class="app-item-icon" style="background:${/^#[0-9a-f]{6}$/iu.test(app.color) ? app.color : '#8e8e93'}">${icon ? `<img src="${escapeHtml(icon)}" alt="">` : escapeHtml(initials)}</div>
       <div class="app-item-info">
         <div class="app-item-name">${escapeHtml(app.name)}</div>
@@ -2214,6 +2219,24 @@ function initEvents() {
     storage(ONBOARDED_KEY, '1');
     closeModal('onboardingOverlay');
   });
+  $('#onboardingTour').addEventListener('click', () => {
+    storage(ONBOARDED_KEY, '1');
+    closeModal('onboardingOverlay');
+    startTour();
+  });
+
+  // Help: tour + tips
+  $('#helpBtn').addEventListener('click', startTour);
+  $('#startTourBtn').addEventListener('click', () => { closeModal('settingsModal'); startTour(); });
+  $('#tipsToggle').addEventListener('change', (e) => {
+    hints.setEnabled(e.target.checked);
+    toast(e.target.checked ? 'Tips are on.' : 'Tips are off. Hover any control for help.', { tone: 'ok' });
+  });
+  $('#resetTipsBtn').addEventListener('click', () => {
+    hints.reset();
+    $('#tipsToggle').checked = true;
+    toast('All tips will show again as you use the app.', { tone: 'ok' });
+  });
 
   // App list + folder delegation
   const tree = $('#folderTree');
@@ -2387,7 +2410,11 @@ function initEvents() {
   });
 
   // Settings
-  $('#settingsBtn').addEventListener('click', () => { theme.apply(); openModal('settingsModal'); });
+  $('#settingsBtn').addEventListener('click', () => {
+    theme.apply();
+    $('#tipsToggle').checked = hints.enabled;
+    openModal('settingsModal');
+  });
   $('.theme-picker').addEventListener('click', (e) => {
     const btn = e.target.closest('.theme-btn');
     if (btn) theme.set(btn.dataset.theme);
@@ -2419,6 +2446,8 @@ function initEvents() {
         else closeModal(top);
       } else if ($('.country-dropdown.open')) {
         document.body.click();
+      } else if (hints.activeId) {
+        hints.dismiss();
       } else if (fullDataCtl.open) {
         closeFullDataPanel();
       }
@@ -2435,7 +2464,8 @@ function initEvents() {
       return;
     }
     if (topModal() || isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === '/') { e.preventDefault(); focusSearch(); }
+    if (e.key === '?') { e.preventDefault(); startTour(); }
+    else if (e.key === '/') { e.preventDefault(); focusSearch(); }
     else if (e.key.toLowerCase() === 'a') { e.preventDefault(); openAddAppModal(); }
   });
 
@@ -2463,44 +2493,247 @@ function applySidebarCollapsed() {
   btn.setAttribute('aria-label', state.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
 }
 
-// --- Styled tooltips (data-tip, or title converted on first hover) ---
-function initTooltips() {
-  const tip = document.createElement('div');
-  tip.className = 'app-tooltip';
-  tip.setAttribute('role', 'tooltip');
-  document.body.appendChild(tip);
-  let hide = null;
-  const show = (el) => {
-    const text = el.dataset.tip || el.getAttribute('title');
-    if (!text) return;
-    if (!el.dataset.tip) { el.dataset.tip = text; el.removeAttribute('title'); }
-    clearTimeout(hide);
-    tip.textContent = text;
-    tip.classList.add('visible');
-    const r = el.getBoundingClientRect();
-    tip.style.top = '0px';
-    tip.style.left = '0px';
-    const tw = tip.offsetWidth;
-    const th = tip.offsetHeight;
-    let top = r.top - th - 7;
-    if (top < 4) top = r.bottom + 7;
-    const left = Math.max(6, Math.min(r.left + r.width / 2 - tw / 2, window.innerWidth - tw - 6));
-    tip.style.top = `${top}px`;
-    tip.style.left = `${left}px`;
-  };
-  const hideSoon = () => { hide = setTimeout(() => tip.classList.remove('visible'), 80); };
-  document.addEventListener('mouseover', (e) => {
-    const el = e.target.closest('[title],[data-tip]');
-    if (el) show(el);
-  });
-  document.addEventListener('mouseout', (e) => { if (e.target.closest('[data-tip]')) hideSoon(); });
-  document.addEventListener('focusin', (e) => {
-    const el = e.target.closest?.('[data-tip],[title]');
-    if (el && e.target.matches(':focus-visible')) show(el);
-  });
-  document.addEventListener('focusout', hideSoon);
-  document.addEventListener('mousedown', () => tip.classList.remove('visible'));
-  document.addEventListener('scroll', () => tip.classList.remove('visible'), true);
+// --- Guidance: rich help tooltips, guided tour, contextual tips ---
+const HELP = {
+  'tab-keywords': { title: 'Keywords workspace', body: 'Research search terms: how popular and competitive they are, which apps rank, and where your selected app stands.' },
+  'tab-reviews': { title: 'Reviews workspace', body: 'Read, filter and export reviews of the app(s) selected in the sidebar — Google Play and App Store in one table.' },
+  'aso-search': {
+    title: 'Analyze a keyword',
+    body: 'Type a phrase people search for in the stores and press Enter.',
+    steps: ['You get popularity, difficulty and the top apps', '5 similar keywords are scored as well', 'Select one of your apps to see its rank'],
+    keys: ['/', 'Enter'],
+  },
+  'review-search': {
+    title: 'Filter reviews',
+    body: 'Every word must appear — try “crash login” or “subscription cancel”. Filtering is instant; nothing is downloaded again.',
+    tip: 'Matches are highlighted in the table and in the review view.',
+    keys: ['/'],
+  },
+  store: { title: 'Store', body: 'Show Google Play, the App Store, or both combined. Applies to keywords and reviews.' },
+  country: { title: 'Country (storefront)', body: 'Rankings and reviews differ per country — pick the market you want to study.', tip: 'With the list open, type a letter to jump and use ↑ ↓ Enter.' },
+  language: { title: 'Review language', body: '“All languages” reads the storefront’s main languages together. Pick one language to focus on it.', tip: 'Keyword analysis always uses the storefront’s main language.' },
+  export: { title: 'Export to CSV', body: 'Downloads exactly what you see: the keyword table, the filtered reviews, or the full data set. Opens cleanly in Excel and Google Sheets.', keys: ['Ctrl/⌘', 'E'] },
+  rating: { title: 'Rating range', body: 'Show only reviews between these star ratings. Applied instantly.', tip: 'Set Max★ to 2★ to surface problems fast.' },
+  'fetch-size': { title: 'Reviews to fetch', body: 'How many reviews to download per store. Larger numbers reach further back in time but take longer.', tip: 'Apple caps its feed at about 500 reviews per country.' },
+  'full-data': { title: 'Full data', body: 'Downloads every reachable review of the selected app in every language, from both stores, with rating distribution and top terms.', tip: 'Takes about a minute — results appear while it loads.' },
+  'add-app': { title: 'Track an app', body: 'Search by name, or paste a package (com.spotify.music) or App Store id (324684580). An app found on both stores becomes one entry.', keys: ['A'] },
+  'new-folder': { title: 'New folder', body: 'Group apps, e.g. “Mine” and “Competitors”. Drag apps onto a folder to move them.' },
+  settings: { title: 'Settings', body: 'Theme, tips, the guided tour, keyboard shortcuts and data reset.' },
+  help: { title: 'Guided tour', body: 'A one-minute walkthrough of every part of OwlASO. Hover any control for an explanation like this one.', keys: ['?'] },
+  'sidebar-toggle': () => (state.sidebarCollapsed
+    ? { title: 'Expand sidebar', body: 'Show app names again.' }
+    : { title: 'Collapse sidebar', body: 'Hide app names to give the tables more room. Icons stay clickable.' }),
+  'app-item': (el) => ({
+    title: el.dataset.helpTitle,
+    legend: [['Click', 'Select — shows its reviews and keyword ranks'], ['Ctrl/⌘-click', 'Add to comparison (up to 5)'], ['Drag', 'Move into a folder'], ['Delete', 'Remove (you can undo)']],
+  }),
+  'col-keyword': { title: 'Keyword / Topic', body: 'The analyzed keyword first, then similar keywords. Click a row for the full ranking, trends and competitor keywords.' },
+  'col-updated': { title: 'Last updated', body: 'When the keyword was analyzed. History builds up by itself: analyze a keyword on different days to see its trend.' },
+  'col-popularity': {
+    title: 'Popularity (0–100)',
+    body: 'Estimated search demand, based on how many strong, well-reviewed apps compete for the term.',
+    legend: [['67+', 'High demand', 'green'], ['34–66', 'Medium', 'yellow'], ['0–33', 'Low', 'gray']],
+  },
+  'col-difficulty': {
+    title: 'Difficulty (0–100)',
+    body: 'How hard it is to reach the top results. Big, highly rated, ad-backed apps make it harder.',
+    legend: [['0–33', 'Easier to rank', 'green'], ['34–66', 'Competitive', 'yellow'], ['67+', 'Very hard', 'red']],
+  },
+  'col-position': {
+    title: 'Position',
+    body: 'Where the app selected in the sidebar ranks for this keyword, per store.',
+    legend: [['#3', '3rd in the search results'], ['50+', 'Not in the top 50'], ['▲2 ▼1', 'Change since the previous day']],
+    tip: 'Nothing shown? Click one of your apps in the sidebar.',
+  },
+  'col-apps': { title: 'Apps in ranking', body: 'The top apps for this keyword. Click an app for its store details; “+N” lists all of them.' },
+  opportunity: { title: 'Opportunity', body: 'Popularity adjusted for how beatable the keyword is: popularity × (100 − difficulty) ÷ 100.', tip: 'Higher is better — 40+ is worth targeting.' },
+  'load-more': (el) => ({ title: 'Load more', body: `Fetch up to ${el.dataset.next} reviews per store, reaching further back in time.` }),
+};
+
+const tour = createTour({
+  onStart: () => hints.hide(),
+  onEnd: ({ completed }) => {
+    if (completed) toast('You’re all set. Hover anything for help, or press ? to replay the tour.', { tone: 'ok', timeout: 5000 });
+    scheduleHints(1200);
+  },
+});
+
+function startTour() {
+  if (tour.active) return;
+  for (const { id } of [...modalStack].reverse()) closeModal(id);
+  const originalView = state.view;
+  const searchGroup = (id) => $(id).closest('.tb-search-group');
+  tour.start([
+    {
+      title: 'Welcome to OwlASO 👋',
+      body: 'This one-minute tour shows where everything lives. Use → and ← (or the buttons); Esc skips.',
+    },
+    {
+      target: () => $('#addAppBtn2'),
+      placement: 'right',
+      title: 'Track your apps',
+      body: 'Add your own app and your competitors here — search by name or paste a store id.',
+      bullets: ['An app found on both stores becomes one entry', 'Press A anywhere to add an app'],
+    },
+    {
+      target: () => $('#folderTree'),
+      placement: 'right',
+      title: 'Your app list',
+      body: 'The selected app drives everything: its keyword positions and its reviews.',
+      bullets: ['Click to select, Ctrl/⌘-click to compare', 'Drag apps into folders to organize them'],
+    },
+    {
+      target: () => $('.view-tabs'),
+      title: 'Two workspaces',
+      body: 'Keywords is for search research, Reviews is for user feedback. Switching keeps your results.',
+    },
+    {
+      before: () => setView('keywords'),
+      target: () => searchGroup('#asoSearchInput'),
+      title: 'Analyze a keyword',
+      body: 'Type what people search for and press Enter. OwlASO scores it and 5 similar keywords.',
+      bullets: ['Press / to jump here from anywhere'],
+    },
+    {
+      before: () => setView('keywords'),
+      target: () => (state.aso.keyword && isVisible($('#kwTableHead')) ? $('#kwTableHead') : $('#emptyState')),
+      title: 'Read the scores',
+      body: 'Each keyword gets three numbers. Hover a column title any time for the full explanation.',
+      bullets: ['Popularity — search demand (higher is better)', 'Difficulty — how hard the top spots are (lower is easier)', 'Position — your selected app’s rank, with daily ▲▼ change'],
+    },
+    {
+      target: () => $('#marketFilters'),
+      title: 'Pick the market',
+      body: 'Store, country and language apply to both workspaces. Rankings and reviews differ per country.',
+    },
+    {
+      before: () => setView('reviews'),
+      target: () => searchGroup('#commentSearchInput'),
+      title: 'Filter reviews instantly',
+      body: 'Type words that must all appear, e.g. “crash login”. Matches are highlighted; click a review to read it, then use ← →.',
+    },
+    {
+      before: () => setView('reviews'),
+      target: () => $('#reviewBar .review-filters'),
+      title: 'Focus and go deeper',
+      body: 'Narrow down or pull in more reviews:',
+      bullets: ['Rating — e.g. 1–2★ to find problems', 'Fetch — how many reviews per store', 'Full data — every language from both stores'],
+    },
+    {
+      target: () => $('#exportBtn'),
+      title: 'Export',
+      body: 'Download what you see as CSV — keywords, filtered reviews or full data. Shortcut: Ctrl/⌘+E.',
+    },
+    {
+      before: () => setView(originalView),
+      target: () => $('#helpBtn'),
+      placement: 'right',
+      title: 'Help is always here',
+      body: 'Replay this tour with ? or this button. Tips will also point out features the first time you reach them.',
+    },
+  ]);
+}
+
+// Contextual tips: the first unseen tip whose situation applies is shown next
+// to the element it talks about; dismissing one lets the next appear.
+const hints = createHints({
+  read: (key) => storage(key),
+  write: (key, value) => storage(key, value),
+  canShow: () => !topModal() && !tour.active && !$('.country-dropdown.open') && document.visibilityState === 'visible',
+  onDismiss: () => scheduleHints(900),
+});
+
+const firstAppItem = (selector = '[data-app-id]') => [...$$(`#folderTree ${selector}`)].find(isVisible) || null;
+const HINTS = [
+  {
+    id: 'first-app',
+    when: () => !state.apps.length && storage(ONBOARDED_KEY),
+    target: () => $('#addAppBtn2'),
+    placement: 'right',
+    title: 'Start here',
+    body: 'Track your first app — search by name, or paste its package / App Store id.',
+    action: { label: 'Add app', run: () => openAddAppModal() },
+  },
+  {
+    id: 'select-app-for-position',
+    when: () => state.view === 'keywords' && state.aso.main && state.apps.length && !selectedApp(),
+    target: () => firstAppItem(),
+    placement: 'right',
+    title: 'See where your app ranks',
+    body: 'Select one of your apps — the Position column then shows its rank on each store for every keyword.',
+  },
+  {
+    id: 'open-keyword',
+    when: () => state.view === 'keywords' && state.aso.main,
+    target: () => $('#tableBody tr[data-row-kind="aso"]'),
+    title: 'Dig into a keyword',
+    body: 'Click a row for the full ranking, the trend over time and the keywords competitors also rank for.',
+  },
+  {
+    id: 'similar-keywords',
+    when: () => state.view === 'keywords' && state.aso.main?.similar?.length,
+    target: () => $('#similarBar .similar-chip'),
+    title: 'Explore related keywords',
+    body: 'Click a similar keyword to analyze it next — the quickest way to find easier opportunities.',
+  },
+  {
+    id: 'filter-reviews',
+    when: () => state.view === 'reviews' && state.reviews.status === 'ready' && state.reviews.all.length > 0 && !fullDataCtl.open,
+    target: () => $('#commentSearchInput'),
+    title: 'Find what matters',
+    body: 'Type words like “crash login” — every word must match. Use Rating to focus on 1–2★ reviews.',
+  },
+  {
+    id: 'open-review',
+    when: () => state.view === 'reviews' && state.reviews.filtered.length > 0 && !fullDataCtl.open,
+    target: () => $('#tableBody tr[data-row-kind="comment"]'),
+    title: 'Read a review',
+    body: 'Click a review to open it, then use ← → to move through them.',
+  },
+  {
+    id: 'compare-apps',
+    when: () => state.view === 'reviews' && state.apps.length >= 2 && state.selectedApps.size === 1 && !fullDataCtl.open,
+    target: () => firstAppItem('.app-item:not(.selected) [data-app-id]'),
+    placement: 'right',
+    title: 'Compare apps',
+    body: 'Ctrl/⌘-click another app to put both apps’ reviews side by side.',
+  },
+  {
+    id: 'full-data',
+    when: () => state.view === 'reviews' && state.reviews.status === 'ready' && !fullDataCtl.open,
+    target: () => $('#fullDataBtn'),
+    title: 'Need every review?',
+    body: 'Full data downloads every language from both stores, with rating distribution and top terms.',
+  },
+  {
+    id: 'export',
+    when: () => (state.view === 'keywords' ? Boolean(state.aso.main) : state.reviews.filtered.length > 0),
+    target: () => $('#exportBtn'),
+    title: 'Take it to a spreadsheet',
+    body: 'Export what you see as CSV — press Ctrl/⌘+E.',
+  },
+];
+
+let hintTimer = null;
+function scheduleHints(delay = 700) {
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(maybeShowHint, delay);
+}
+
+function maybeShowHint() {
+  if (!hints.enabled) return;
+  const current = HINTS.find((h) => h.id === hints.activeId);
+  if (current) {
+    const target = current.target();
+    if (!current.when() || !isVisible(target)) hints.hide();
+    else if (hints.refresh()) return; // still anchored; otherwise re-anchor below
+  }
+  for (const hint of HINTS) {
+    if (hints.isSeen(hint.id) || !hint.when()) continue;
+    const target = hint.target();
+    if (!isVisible(target)) continue;
+    if (hints.show(hint.id, target, hint)) return;
+  }
 }
 
 async function loadHealth() {
@@ -2517,7 +2750,7 @@ function init() {
   loadPersisted();
   initDropdowns();
   initEvents();
-  initTooltips();
+  initTooltips({ help: HELP, isSuppressed: () => tour.active });
   applySidebarCollapsed();
   renderFolders();
   updateReviewAppLabel();
@@ -2525,6 +2758,7 @@ function init() {
   setView(state.view);
   loadHealth();
   if (!storage(ONBOARDED_KEY)) openModal('onboardingOverlay');
+  else scheduleHints(1200);
 }
 
 init();

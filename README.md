@@ -61,7 +61,13 @@ Outputs land in `dist/`.
 3. **Reviews** — select an app. Filter by keyword (all words must match) and star range instantly; change store, country, language or the fetch size to load new data. **Load more** raises the fetch size. **Full data** pulls everything in every language.
 4. **Export** — `Ctrl/⌘+E` exports what you are looking at as CSV.
 
-Shortcuts: `/` focus search · `A` add app · `←/→` previous/next review · `Esc` close dialog.
+Shortcuts: `/` focus search · `A` add app · `?` guided tour · `←/→` previous/next review · `Esc` close dialog.
+
+### Built-in guidance
+
+- **Guided tour** — an 11-step walkthrough that highlights each area of the app. Offered on first launch; replay with `?`, the **?** button in the sidebar, or Settings.
+- **Help tooltips** — hover (or keyboard-focus) any control or column title for what it does, how to read it (e.g. what counts as a high difficulty) and its shortcut.
+- **Contextual tips** — the first time you reach a feature, a small tip points at the next useful step (select an app to see its rank, filter reviews, compare apps, Full data, export). Each tip shows once; turn them off or reset them in Settings.
 
 ## Security model
 
@@ -118,5 +124,6 @@ All endpoints are `GET` and return JSON unless noted. Invalid input returns `400
 - **Security**: fixed path traversal in rank-history writes (`store` parameter), a crash on malformed `Host` headers, CSRF/DNS-rebinding exposure of the local API, CSV formula injection and a broken CSV quote in full-data exports; added CSP and security headers, Electron sandboxing, navigation/permission lockdown and an `http(s)`-only external-link allowlist; upgraded Electron 31 → 44 and electron-builder 24 → 26 (0 known vulnerabilities).
 - **Correctness**: "All stores" now really fetches both stores (the app's store and known counterpart are sent to the server); the Add-app modal searches both stores; ranks come from real search order (they used to follow request completion order); Position is your app's rank instead of an average; history is keyed by country and language, one snapshot per day, and no longer collides for non-Latin keywords; counterpart matching no longer falls back to unrelated apps; unrated listings no longer drag ratings down; duplicate reviews are removed by store review id; App Store reviews are fetched once per storefront; "Show more", Escape handling and stale-response races fixed.
 - **Performance**: shared, size-bounded cache with request coalescing; far fewer store requests per keyword analysis (App Store search already carries listing details, similar-keyword rows skip competitor probes, HTML fallback only when needed); review filtering is instant and local.
+- **Guidance**: guided tour, rich help tooltips on every control and column, one-time contextual tips.
 - **UX**: Keywords/Reviews tabs with a contextual filter bar, store column and match highlighting in reviews, multi-app comparison, review navigation with ←/→, toasts with undo, keyboard support and screen-reader labels throughout, trend charts, better empty/error states with retry, dark-mode flash fix, native Edit menu on macOS.
 - One shared API router for the web server and the desktop app (the desktop app was missing the history route).

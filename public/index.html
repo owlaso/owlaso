@@ -24,7 +24,7 @@
           </svg>
           <div class="sidebar-brand-title">OwlASO</div>
         </div>
-        <button class="icon-btn sidebar-toggle" id="sidebarToggle" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">
+        <button class="icon-btn sidebar-toggle" id="sidebarToggle" type="button" aria-label="Collapse sidebar" aria-expanded="true" data-help="sidebar-toggle" data-help-placement="right">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h10M2 7h10M2 11h10"/></svg>
         </button>
       </div>
@@ -32,10 +32,10 @@
       <section class="sidebar-section">
         <div class="sidebar-section-header">
           <span class="section-label" id="myAppsLabel">My Apps</span>
-          <button class="icon-btn" id="createFolderBtn" type="button" aria-label="New folder" title="New folder">
+          <button class="icon-btn" id="createFolderBtn" type="button" aria-label="New folder" data-help="new-folder" data-help-placement="right">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 3A1.5 1.5 0 000 4.5v7A1.5 1.5 0 001.5 13h13a1.5 1.5 0 001.5-1.5v-7A1.5 1.5 0 0014.5 3H8.621a1.5 1.5 0 01-1.06-.44L6.44 1.44A1.5 1.5 0 005.378 1H1.5z"/><path fill="var(--surface)" d="M7.5 7h1v2h2v1h-2v2h-1v-2h-2V9h2V7z"/></svg>
           </button>
-          <button class="icon-btn" id="addAppBtn2" type="button" aria-label="Add app" title="Add app (A)">
+          <button class="icon-btn" id="addAppBtn2" type="button" aria-label="Add app" data-help="add-app" data-help-placement="right">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 2v10M2 7h10"/></svg>
           </button>
         </div>
@@ -44,12 +44,15 @@
 
       <div class="sidebar-footer">
         <div class="sidebar-footer-meta" id="footerMeta">No apps tracked</div>
-        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" title="Settings">
+        <div class="sidebar-footer-actions">
+        <button class="icon-btn help-btn" id="helpBtn" type="button" aria-label="Guided tour" data-help="help" data-help-placement="right">?</button>
+        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" data-help="settings" data-help-placement="right">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="10" cy="10" r="3"/>
             <path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.22 4.22l1.06 1.06M14.72 14.72l1.06 1.06M4.22 15.78l1.06-1.06M14.72 5.28l1.06-1.06"/>
           </svg>
         </button>
+        </div>
       </div>
     </aside>
 
@@ -58,32 +61,33 @@
       <header class="toolbar">
         <div class="toolbar-left">
           <div class="view-tabs" role="tablist" aria-label="View">
-            <button class="view-tab active" id="tabKeywords" type="button" role="tab" aria-selected="true" aria-controls="tableContainer" data-view="keywords">Keywords</button>
-            <button class="view-tab" id="tabReviews" type="button" role="tab" aria-selected="false" aria-controls="tableContainer" data-view="reviews">Reviews</button>
+            <button class="view-tab active" id="tabKeywords" type="button" role="tab" aria-selected="true" aria-controls="tableContainer" data-view="keywords" data-help="tab-keywords">Keywords</button>
+            <button class="view-tab" id="tabReviews" type="button" role="tab" aria-selected="false" aria-controls="tableContainer" data-view="reviews" data-help="tab-reviews">Reviews</button>
           </div>
           <div class="tb-search-group" data-view-only="keywords">
-            <input class="tb-search" id="asoSearchInput" type="search" placeholder="Analyze a keyword, e.g. habit tracker" aria-label="Keyword to analyze" autocomplete="off" spellcheck="false" maxlength="100">
-            <button class="tb-search-btn" id="asoSearchBtn" type="button" aria-label="Analyze keyword" title="Analyze (Enter)">
+            <input class="tb-search" id="asoSearchInput" type="search" placeholder="Analyze a keyword, e.g. habit tracker" aria-label="Keyword to analyze" data-help="aso-search" autocomplete="off" spellcheck="false" maxlength="100">
+            <button class="tb-search-btn" id="asoSearchBtn" type="button" aria-label="Analyze keyword" data-help="aso-search">
               <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
             </button>
           </div>
           <div class="tb-search-group hidden" data-view-only="reviews">
-            <input class="tb-search" id="commentSearchInput" type="search" placeholder="Select an app first…" aria-label="Filter reviews by keyword" autocomplete="off" spellcheck="false" maxlength="200" disabled>
-            <button class="tb-search-btn" id="commentSearchBtn" type="button" aria-label="Filter reviews" title="Filter reviews" disabled>
+            <input class="tb-search" id="commentSearchInput" type="search" placeholder="Select an app first…" aria-label="Filter reviews by keyword" data-help="review-search" autocomplete="off" spellcheck="false" maxlength="200" disabled>
+            <button class="tb-search-btn" id="commentSearchBtn" type="button" aria-label="Filter reviews" data-help="review-search" disabled>
               <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
             </button>
           </div>
-          <button class="review-app-label hidden" id="reviewAppLabel" type="button" title="App details">for <strong id="reviewAppName"></strong></button>
+          <button class="review-app-label hidden" id="reviewAppLabel" type="button" data-tip="Show app details">for <strong id="reviewAppName"></strong></button>
         </div>
         <div class="toolbar-right">
-          <select class="tb-select" id="storeFilter" aria-label="Store" title="Store">
+          <div class="tb-group" id="marketFilters">
+          <select class="tb-select" id="storeFilter" aria-label="Store" data-help="store">
             <option value="both">All stores</option>
             <option value="google">Google Play</option>
             <option value="apple">App Store</option>
           </select>
           <!-- Custom country picker -->
           <div class="custom-select-wrap" id="countryWrap">
-            <button class="country-btn" id="countryBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Country" title="Country / storefront">
+            <button class="country-btn" id="countryBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Country" data-help="country">
               <span class="flag-emoji" id="countryFlag"></span>
               <span class="country-code" id="countryCode">US</span>
             </button>
@@ -91,14 +95,15 @@
           </div>
           <!-- Custom language picker -->
           <div class="custom-select-wrap" id="langWrap">
-            <button class="country-btn" id="langBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Language" title="Review language">
+            <button class="country-btn" id="langBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Language" data-help="language">
               <span class="flag-emoji" id="langFlag"></span>
               <span class="country-code" id="langCode">All</span>
             </button>
             <div class="country-dropdown" id="langDropdown" role="listbox" aria-label="Language"></div>
           </div>
+          </div>
           <span class="tb-sep" aria-hidden="true"></span>
-          <button class="pill-btn" id="exportBtn" type="button" title="Export as CSV (Ctrl+E)">Export</button>
+          <button class="pill-btn" id="exportBtn" type="button" data-help="export">Export</button>
         </div>
       </header>
 
@@ -109,7 +114,7 @@
       <div class="subbar review-bar hidden" id="reviewBar" data-view-only="reviews">
         <div class="review-filters">
           <label class="subbar-label" for="starMin">Rating</label>
-          <select class="tb-select tb-select-sm" id="starMin" aria-label="Minimum stars">
+          <select class="tb-select tb-select-sm" id="starMin" aria-label="Minimum stars" data-help="rating">
             <option value="">Min★</option>
             <option value="1">1★</option>
             <option value="2">2★</option>
@@ -118,7 +123,7 @@
             <option value="5">5★</option>
           </select>
           <span class="subbar-dash" aria-hidden="true">–</span>
-          <select class="tb-select tb-select-sm" id="starMax" aria-label="Maximum stars">
+          <select class="tb-select tb-select-sm" id="starMax" aria-label="Maximum stars" data-help="rating">
             <option value="">Max★</option>
             <option value="1">1★</option>
             <option value="2">2★</option>
@@ -127,14 +132,14 @@
             <option value="5">5★</option>
           </select>
           <label class="subbar-label" for="maxReviews">Fetch</label>
-          <select class="tb-select tb-select-sm" id="maxReviews" title="Maximum reviews to fetch per store">
+          <select class="tb-select tb-select-sm" id="maxReviews" aria-label="Reviews to fetch per store" data-help="fetch-size">
             <option value="250">250</option>
             <option value="500">500</option>
             <option value="1000">1K</option>
             <option value="2000">2K</option>
             <option value="5000">5K</option>
           </select>
-          <button class="pill-btn pill-accent" id="fullDataBtn" type="button" title="Fetch every reachable review across stores and languages">Full data</button>
+          <button class="pill-btn pill-accent" id="fullDataBtn" type="button" data-help="full-data">Full data</button>
         </div>
         <!-- Review summary (fetch counts, store limits, warnings) -->
         <div class="review-summary hidden" id="reviewSummary" role="status" aria-live="polite"></div>
@@ -285,6 +290,7 @@
         </li>
       </ol>
       <button class="pill-btn pill-primary pill-block" id="onboardingDone" type="button" data-autofocus>Add my first app</button>
+      <button class="pill-btn pill-block onboarding-tour" id="onboardingTour" type="button">Show me around (1 min tour)</button>
       <button class="link-btn" id="onboardingSkip" type="button">Skip for now</button>
     </div>
   </div>
@@ -315,9 +321,30 @@
           </div>
         </section>
         <section class="settings-section">
+          <div class="settings-section-label">Help &amp; tips</div>
+          <div class="settings-row">
+            <div class="settings-integration-label">
+              <span class="settings-integration-title">Guided tour</span>
+              <span class="settings-integration-desc">A one-minute walkthrough of every part of the app. Press <kbd>?</kbd> anytime.</span>
+            </div>
+            <button class="pill-btn" id="startTourBtn" type="button">Start tour</button>
+          </div>
+          <div class="settings-row settings-row-gap">
+            <label class="settings-check" for="tipsToggle">
+              <input type="checkbox" id="tipsToggle">
+              <span class="settings-integration-label">
+                <span class="settings-integration-title">Show tips</span>
+                <span class="settings-integration-desc">Small hints that point at the next useful step the first time you reach a feature.</span>
+              </span>
+            </label>
+            <button class="pill-btn" id="resetTipsBtn" type="button">Show all tips again</button>
+          </div>
+        </section>
+        <section class="settings-section">
           <div class="settings-section-label">Keyboard shortcuts</div>
           <dl class="shortcut-list">
             <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
+            <div><dt><kbd>?</kbd></dt><dd>Guided tour</dd></div>
             <div><dt><kbd>A</kbd></dt><dd>Add app</dd></div>
             <div><dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>E</kbd></dt><dd>Export CSV</dd></div>
             <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next review</dd></div>

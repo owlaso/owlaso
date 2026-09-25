@@ -172,3 +172,25 @@ test('stale responses cannot overwrite newer ones', () => {
   assert.match(app, /isCurrent\('reviews', ctl\)/);
   assert.match(app, /isCurrent\('aso', ctl\)/);
 });
+
+test('every data-help key used in the UI has help content', async () => {
+  const keys = new Set([...index.matchAll(/data-help="([\w-]+)"/g), ...app.matchAll(/data-help="([\w-]+)"/g)].map((m) => m[1]));
+  assert.ok(keys.size >= 20, `expected many help anchors, got ${keys.size}`);
+  const helpBlock = app.slice(app.indexOf('const HELP = {'), app.indexOf('const tour = createTour'));
+  for (const key of keys) {
+    assert.match(helpBlock, new RegExp(`(^|\\s)'?${key}'?: `, 'm'), `HELP is missing "${key}"`);
+  }
+});
+
+test('guided tour, contextual tips and help entry points are wired', async () => {
+  const guide = await readFile(new URL('../public/lib/guide.js', import.meta.url), 'utf8');
+  assert.match(guide, /export function createTour/);
+  assert.match(guide, /export function createHints/);
+  assert.match(guide, /export function initTooltips/);
+  assert.doesNotMatch(guide, /innerHTML/, 'guidance UI must be built with textContent only');
+  assert.match(index, /id="helpBtn"[^>]*aria-label="Guided tour"/);
+  assert.match(index, /id="onboardingTour"/);
+  assert.match(index, /id="tipsToggle"/);
+  assert.match(app, /e\.key === '\?'/);
+  assert.match(app, /const HINTS = \[/);
+});
