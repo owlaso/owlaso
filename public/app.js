@@ -9,6 +9,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // --- Country / language maps ---
 const COUNTRIES = [
+  { code: 'all', cc: 'world', name: 'All countries' },
   { code: 'us', name: 'United States' },
   { code: 'tr', name: 'Turkey' },
   { code: 'gb', name: 'United Kingdom' },
@@ -52,9 +53,15 @@ const LANGUAGES = [
   { code: 'id', cc: 'id', name: 'Bahasa Indonesia' },
 ];
 const LANGUAGE_NAMES = Object.fromEntries(LANGUAGES.map((l) => [l.code, l.name]));
+const COUNTRY_CODES = COUNTRIES.filter((c) => c.code !== 'all').map((c) => c.code);
+const countryName = (code) => COUNTRIES.find((c) => c.code === code)?.name || String(code || '').toUpperCase();
+const isAllCountries = () => state.filters.country === 'all';
+// Endpoints that need one storefront (search, app details) use the US store for "All countries".
+const concreteCountry = () => (isAllCountries() ? 'us' : state.filters.country);
 
 function flagImg(cc, size = '20x15') {
   if (!cc) return '<span class="flag-globe" aria-hidden="true">🌐</span>';
+  if (cc === 'world') return '<span class="flag-globe" aria-hidden="true">🌍</span>';
   const [w, h] = size.split('x');
   // Broken/blocked flags are hidden by the delegated error listener in init().
   return `<img class="flag-img" src="https://flagcdn.com/${size}/${encodeURIComponent(cc)}.png" alt="" width="${w}" height="${h}" loading="lazy">`;
@@ -116,7 +123,7 @@ function asoSignature() {
 }
 
 function emptyReviews() {
-  return { status: 'idle', signature: '', apps: [], all: [], filtered: [], term: '', totalFetched: 0, perStore: {}, errors: [], warnings: [], notes: [], moreAvailable: false, languages: [], renderLimit: RENDER_CAP };
+  return { status: 'idle', signature: '', apps: [], all: [], filtered: [], term: '', totalFetched: 0, perStore: {}, errors: [], warnings: [], notes: [], moreAvailable: false, languages: [], countries: 0, renderLimit: RENDER_CAP };
 }
 
 // --- Utilities ---
@@ -320,6 +327,7 @@ const theme = {
 // --- Toasts ---
 function toast(message, { action, timeout = 4000, tone = 'info' } = {}) {
   const region = $('#toastRegion');
+  for (const old of region.children) if (old.firstChild?.textContent === message) old.remove();
   const el = document.createElement('div');
   el.className = `toast toast-${tone}`;
   const text = document.createElement('span');
@@ -445,16 +453,16 @@ function buildCustomDropdown(btn, dropEl, entries, getCurrent, onSelect) {
 }
 
 function setCountryUI(code) {
-  const c = COUNTRIES.find((x) => x.code === code) || COUNTRIES[0];
-  $('#countryFlag').innerHTML = flagImg(c.code);
-  $('#countryCode').textContent = c.code.toUpperCase();
+  const c = COUNTRIES.find((x) => x.code === code) || COUNTRIES[1];
+  $('#countryFlag').innerHTML = flagImg(c.cc !== undefined ? c.cc : c.code);
+  $('#countryCode').textContent = c.code === 'all' ? 'All countries' : c.code.toUpperCase();
   $('#countryBtn').setAttribute('aria-label', `Country: ${c.name}`);
 }
 
 function setLangUI(code) {
   const l = LANGUAGES.find((x) => x.code === code) || LANGUAGES[0];
   $('#langFlag').innerHTML = flagImg(l.cc);
-  $('#langCode').textContent = l.code === 'all' ? 'All' : l.code.toUpperCase();
+  $('#langCode').textContent = l.code === 'all' ? 'All langs' : l.code.toUpperCase();
   $('#langBtn').setAttribute('aria-label', `Language: ${l.name}`);
 }
 
@@ -593,6 +601,10 @@ async function runASOSearch(keyword) {
   state.aso = emptyAso();
   state.aso.keyword = kw;
   state.aso.signature = asoSignature();
+  if (isAllCountries()) {
+    runCountryComparison(kw, ctl);
+    return;
+  }
   state.aso.rows.set(kw, { status: 'loading' });
   state.aso.order = [kw];
   renderAsoTable();
@@ -618,6 +630,51 @@ async function runASOSearch(keyword) {
     state.aso.error = err.message;
     setError(err.message, () => runASOSearch(kw));
   }
+}
+
+// "All countries": the same keyword analyzed in every storefront, one row per
+// country, then sorted so the best markets (highest opportunity) come first.
+async function runCountryComparison(kw, ctl) {
+  state.aso.mode = 'countries';
+  state.aso.rows = new Map(COUNTRY_CODES.map((cc) => [cc, { status: 'loading' }]));
+  state.aso.order = [...COUNTRY_CODES];
+  rememberKeyword(kw);
+  persist();
+  renderAsoTable();
+  renderSimilarBar();
+  await mapLimit(COUNTRY_CODES, 3, (cc) => loadCountryRow(kw, cc, ctl));
+  if (!isCurrent('aso', ctl)) return;
+  const rows = [...state.aso.rows.values()];
+  if (!rows.some((r) => r.status === 'ready')) {
+    state.aso.error = rows.find((r) => r.error)?.error || 'No country could be analyzed.';
+    setError(state.aso.error, () => runASOSearch(kw));
+    return;
+  }
+  const opportunity = (cc) => {
+    const row = state.aso.rows.get(cc);
+    return row?.status === 'ready' ? num(row.data.metrics?.opportunity) : -1;
+  };
+  state.aso.order.sort((a, b) => opportunity(b) - opportunity(a));
+  state.aso.sorted = true;
+  renderAsoTable();
+  toast('Sorted by opportunity — best markets first.', { tone: 'ok' });
+}
+
+async function loadCountryRow(kw, cc, ctl) {
+  try {
+    // lite: no competitor probes; track: still keep daily history per country.
+    const data = await api(`/api/asosearch?${asoQuery(kw, { country: cc, lite: '1', track: '1' })}`, { signal: ctl.signal });
+    if (!isCurrent('aso', ctl)) return;
+    state.aso.rows.set(cc, { status: 'ready', data });
+    if (!state.aso.main || cc === 'us') {
+      state.aso.main = data;
+      renderSimilarBar();
+    }
+  } catch (err) {
+    if (isAbort(err) || !isCurrent('aso', ctl)) return;
+    state.aso.rows.set(cc, { status: 'error', error: err.message });
+  }
+  updateAsoRow(cc);
 }
 
 async function loadSimilarRow(kw, ctl) {
@@ -768,8 +825,18 @@ function appsChips(apps, max = 4) {
 
 function buildAsoRow(kw, isMain) {
   const row = state.aso.rows.get(kw) || { status: 'loading' };
-  const badge = isMain ? '<span class="kw-keyword-type">analyzed</span>' : '<span class="kw-keyword-type similar">similar</span>';
-  const keywordCell = `<td class="kw-col-keyword"><span class="kw-keyword">${escapeHtml(kw)}</span>${badge}</td>`;
+  const byCountry = state.aso.mode === 'countries';
+  let keywordCell;
+  if (byCountry) {
+    const opp = (key) => num(state.aso.rows.get(key)?.data?.metrics?.opportunity);
+    const fourth = state.aso.order[3];
+    const top = state.aso.sorted && row.status === 'ready' && state.aso.order.indexOf(kw) < 3 && opp(kw) > 0 && (!fourth || opp(kw) > opp(fourth));
+    keywordCell = `<td class="kw-col-keyword"><span class="kw-country">${flagImg(kw)}<span class="kw-keyword">${escapeHtml(countryName(kw))}</span></span>${top ? '<span class="kw-keyword-type top">top market</span>' : ''}</td>`;
+  } else {
+    const badge = isMain ? '<span class="kw-keyword-type">analyzed</span>' : '<span class="kw-keyword-type similar">similar</span>';
+    keywordCell = `<td class="kw-col-keyword"><span class="kw-keyword">${escapeHtml(kw)}</span>${badge}</td>`;
+  }
+  const rowLabel = byCountry ? `${state.aso.keyword} in ${countryName(kw)}` : kw;
 
   if (row.status === 'loading') {
     return `
@@ -784,7 +851,7 @@ function buildAsoRow(kw, isMain) {
     <tr data-row-kind="aso-error" data-row-kw="${escapeHtml(kw)}">
       ${keywordCell}
       <td class="kw-col-updated"><span class="kw-updated muted">Failed</span></td>
-      <td colspan="4"><span class="row-error" data-tip="${escapeHtml(row.error || '')}">Couldn't analyze this keyword.</span> <button type="button" class="link-btn" data-retry-kw="${escapeHtml(kw)}">Retry</button></td>
+      <td colspan="4"><span class="row-error" data-tip="${escapeHtml(row.error || '')}">Couldn't analyze ${byCountry ? 'this country' : 'this keyword'}.</span> <button type="button" class="link-btn" data-retry-kw="${escapeHtml(kw)}">Retry</button></td>
     </tr>`;
   }
   const data = row.data;
@@ -794,7 +861,7 @@ function buildAsoRow(kw, isMain) {
     ? `<span class="kw-history-hint" data-tip="Tracked since ${escapeHtml(absoluteDate(state.aso.history[0].at))}">${state.aso.history.length} days</span>`
     : '';
   return `
-  <tr data-row-kind="aso" data-row-kw="${escapeHtml(kw)}" tabindex="0" aria-label="${escapeHtml(kw)}: open analysis">
+  <tr data-row-kind="aso" data-row-kw="${escapeHtml(kw)}" tabindex="0" aria-label="${escapeHtml(rowLabel)}: open analysis">
     ${keywordCell}
     <td class="kw-col-updated"><span class="kw-updated" data-tip="${escapeHtml(absoluteDate(data.analyzedAt, true))}">${relativeTime(data.analyzedAt)}</span>${historyHint}</td>
     <td class="kw-col-pop">${metricCell(metrics.popularity, pctColor, 'Popularity')}</td>
@@ -840,7 +907,9 @@ function setTableHeaders(mode) {
   } else {
     table.classList.remove('multi-app');
     thead.innerHTML = `<tr>
-      <th class="kw-th kw-col-keyword" scope="col" data-help="col-keyword">Keyword / Topic</th>
+      ${state.aso.mode === 'countries'
+        ? '<th class="kw-th kw-col-keyword" scope="col" data-help="col-country">Country</th>'
+        : '<th class="kw-th kw-col-keyword" scope="col" data-help="col-keyword">Keyword / Topic</th>'}
       <th class="kw-th kw-col-updated" scope="col" data-help="col-updated">Last Updated</th>
       <th class="kw-th kw-col-pop" scope="col" data-help="col-popularity">Popularity</th>
       <th class="kw-th kw-col-diff" scope="col" data-help="col-difficulty">Difficulty</th>
@@ -961,7 +1030,8 @@ function openKeywordDetail(kw) {
   const positionCards = positions.map((p) => `<div class="kw-hero-card accent"><div class="value">${p.rank ? `#${p.rank}` : `${p.depth}+`}</div><div class="label" data-tip="${escapeHtml(app.name)}">${STORE_NAMES[p.platform]} rank</div></div>`).join('');
   const isMain = kw === state.aso.keyword;
 
-  $('#detailTitle').textContent = `“${data.keyword}”`;
+  const byCountry = state.aso.mode === 'countries';
+  $('#detailTitle').textContent = `“${data.keyword}”${byCountry ? ` · ${countryName(data.country)}` : ''}`;
   $('#detailBody').innerHTML = `
     <div class="kw-hero">
       <div class="kw-hero-card" data-help="col-popularity"><div class="value" data-c="${pctColor(num(m.popularity))}">${escapeHtml(m.popularity ?? '—')}</div><div class="label">Popularity</div></div>
@@ -972,7 +1042,9 @@ function openKeywordDetail(kw) {
       <div class="kw-hero-card"><div class="value">${escapeHtml(m.adsFraction ?? 0)}%</div><div class="label">Apps with ads</div></div>
       ${positionCards}
     </div>
-    ${isMain ? historySection(kw) : `<div class="detail-note">Quick analysis. <button type="button" class="link-btn" data-kw="${escapeHtml(data.keyword)}">Run full analysis</button> to track its history and competitor keywords.</div>`}
+    ${byCountry
+      ? `<div class="detail-note">Country comparison. <button type="button" class="link-btn" data-open-country="${escapeHtml(data.country)}" data-kw="${escapeHtml(data.keyword)}">Open in ${escapeHtml(countryName(data.country))}</button> for its trend, similar-keyword scores and competitor keywords.</div>`
+      : isMain ? historySection(kw) : `<div class="detail-note">Quick analysis. <button type="button" class="link-btn" data-kw="${escapeHtml(data.keyword)}">Run full analysis</button> to track its history and competitor keywords.</div>`}
     ${data.similar && data.similar.length ? `<div class="detail-section-title">Similar keywords</div><div class="chip-row">${data.similar.map((k) => `<button type="button" class="similar-chip" data-kw="${escapeHtml(k)}">${escapeHtml(k)}</button>`).join('')}</div>` : ''}
     ${data.competitorKeywords && data.competitorKeywords.length ? `<div class="detail-section-title">Keywords the top apps also rank for</div>${data.competitorKeywords.map((c) => `<div class="competitor-keywords"><span class="competitor-name">${escapeHtml(c.app)}</span><div class="competitor-chips">${(c.keywords || []).map((k) => `<button type="button" class="similar-chip" data-kw="${escapeHtml(k)}">${escapeHtml(k)}</button>`).join('')}</div></div>`).join('')}` : ''}
     <div class="detail-section-title">Apps in ranking (${(data.apps || []).length})</div>
@@ -1060,7 +1132,7 @@ async function fetchAndShowAppDetails(app) {
       platform: app.platform,
       appId2: other?.appId,
       store: 'both',
-      country: state.filters.country,
+      country: concreteCountry(),
       lang: state.filters.lang === 'all' ? '' : state.filters.lang,
     });
     const data = await api(`/api/app-details?${q}`, { signal: ctl.signal });
@@ -1172,6 +1244,7 @@ async function loadReviews({ force = false } = {}) {
       if (s.matchedTitle && !known) next.warnings.push(`${prefix}${STORE_NAMES[s.platform]} listing matched by name: “${s.matchedTitle}” (${s.appId}).`);
     }
     for (const l of data.languages || []) languages.add(l);
+    next.countries = Math.max(next.countries, (data.countries || []).length);
   });
   next.languages = [...languages];
   next.all.sort(byDateDesc);
@@ -1258,7 +1331,7 @@ function renderCommentTable(reviews, term, apps) {
       <td class="kw-col-updated"><span class="kw-updated" data-tip="${escapeHtml(absoluteDate(r.date, true))}">${relativeTime(r.date)}</span></td>
       <td class="kw-col-rating">${starsHtml(r.rating)}</td>
       <td class="kw-col-comment"><div class="review-text-cell">${title && title !== text ? `<strong class="review-title">${highlight(title, terms)}</strong> ` : ''}${highlight(text || title || '(No review text)', terms)}</div></td>
-      <td class="kw-col-store">${storeBadge(r.platform)}${r.version ? `<span class="review-version">v${escapeHtml(r.version)}</span>` : ''}${r.lang ? `<span class="review-version">${escapeHtml(r.lang)}</span>` : ''}</td>
+      <td class="kw-col-store">${storeBadge(r.platform)}${r.version ? `<span class="review-version">v${escapeHtml(r.version)}</span>` : ''}${r.lang ? `<span class="review-version">${escapeHtml(r.lang)}</span>` : ''}${r.country ? `<span class="review-version review-country" data-tip="${escapeHtml(countryName(r.country))} App Store">${flagImg(r.country, '16x12')}${escapeHtml(r.country.toUpperCase())}</span>` : ''}</td>
       ${multi ? `<td class="kw-col-app">${app ? `<span class="kw-app-chip static"><span class="kw-app-chip-icon">${appIcon(app)}</span><span class="kw-app-chip-name">${escapeHtml(app.name)}</span></span>` : ''}</td>` : ''}
     </tr>`;
   }).join('') + (reviews.length > shown.length
@@ -1293,6 +1366,7 @@ function openReviewModal(index) {
       <span>${escapeHtml(absoluteDate(review.date, true) || 'Unknown date')}</span>
       ${review.version ? `<span class="review-detail-version">v${escapeHtml(review.version)}</span>` : ''}
       ${review.lang ? `<span>${escapeHtml(LANGUAGE_NAMES[review.lang] || review.lang)}</span>` : ''}
+      ${review.country ? `<span>${escapeHtml(countryName(review.country))}</span>` : ''}
       ${helpful ? `<span>${helpful} found helpful</span>` : ''}
     </div>
     <div class="review-detail-text">${highlight(body || '(No review text provided)', terms)}</div>
@@ -1335,6 +1409,7 @@ function renderReviewSummary() {
   const stores = Object.entries(r.perStore).map(([p, n]) => `${STORE_NAMES[p] || p} ${roundToK(n)}`).join(' · ');
   const parts = [`Fetched <strong>${r.all.length}</strong> review${r.all.length === 1 ? '' : 's'}${stores ? ` <span class="muted">(${escapeHtml(stores)})</span>` : ''}`];
   if (r.filtered.length !== r.all.length) parts.push(`<strong>${r.filtered.length}</strong> match`);
+  if (r.countries > 1) parts.push(`${r.countries} countries`);
   if (r.languages.length > 1) parts.push(`<span data-tip="${escapeHtml(r.languages.map((l) => LANGUAGE_NAMES[l] || l).join(', '))}">${r.languages.length} languages</span>`);
 
   const next = MAX_REVIEW_STEPS.find((s) => s > (Number(state.filters.maxReviews) || 250));
@@ -1723,7 +1798,7 @@ async function searchAppsInModal() {
     const data = await api(`/api/search?${params({
       platform: choice === 'both' ? 'all' : choice,
       q,
-      country: state.filters.country,
+      country: concreteCountry(),
       lang: state.filters.lang === 'all' ? '' : state.filters.lang,
       limit: 16,
     })}`, { signal: ctl.signal });
@@ -1887,7 +1962,7 @@ function renderFullData() {
       <button type="button" class="pill-btn" data-full-data-action="close" aria-label="Back to reviews">← Back</button>
       <div>
         <div class="full-data-name">${escapeHtml(payload.appName)}</div>
-        <div class="muted">Full data · ${escapeHtml(STORE_NAMES[payload.platform] || 'All stores')} · ${escapeHtml(payload.country.toUpperCase())}</div>
+        <div class="muted">Full data · ${escapeHtml(STORE_NAMES[payload.platform] || 'All stores')} · ${escapeHtml(payload.country === 'all' ? 'All countries' : payload.country.toUpperCase())}</div>
       </div>
       ${!payload.done ? `<span class="full-data-stream-status">Fetching… ${payload.groups.length} group${payload.groups.length === 1 ? '' : 's'} done</span>` : ''}
       <div class="full-data-export-actions">
@@ -1938,6 +2013,7 @@ function renderFullData() {
       <div class="full-data-review-meta">
         <span class="full-data-review-date" data-tip="${escapeHtml(absoluteDate(r.date, true))}">${relativeTime(r.date)}</span>
         ${r.lang ? `<span>${escapeHtml(LANGUAGE_NAMES[r.lang] || r.lang)}</span>` : ''}
+        ${r.country ? `<span class="review-country">${flagImg(r.country, '16x12')}${escapeHtml(countryName(r.country))}</span>` : ''}
         ${r.version ? `<span class="full-data-review-version">v${escapeHtml(r.version)}</span>` : ''}
       </div>
       ${r.title ? `<div class="full-data-review-title">${highlight(r.title, terms)}</div>` : ''}
@@ -2112,8 +2188,9 @@ function exportData() {
     const pos = app ? appPositions(app, d.rankings) : [];
     const rankOn = (p) => { const x = pos.find((y) => y.platform === p); return x ? x.rank ?? `>${x.depth}` : ''; };
     return {
-      keyword: kw,
-      type: i === 0 ? 'analyzed' : 'similar',
+      keyword: d.keyword,
+      type: state.aso.mode === 'countries' ? 'country' : i === 0 ? 'analyzed' : 'similar',
+      countryName: countryName(d.country),
       popularity: m.popularity,
       difficulty: m.difficulty,
       opportunity: m.opportunity,
@@ -2129,7 +2206,7 @@ function exportData() {
       analyzedAt: d.analyzedAt,
     };
   });
-  downloadCsv(`keywords-${safeFileName(state.aso.keyword)}.csv`, rows, Object.keys(rows[0]));
+  downloadCsv(`keywords-${safeFileName(state.aso.keyword)}${state.aso.mode === 'countries' ? '-all-countries' : ''}.csv`, rows, Object.keys(rows[0]));
 }
 
 // --- Event Listeners ---
@@ -2318,6 +2395,15 @@ function initEvents() {
   $('#kwModalBody').addEventListener('click', onAppList);
   $('#kwModalBody').addEventListener('keydown', onAppListKey);
   $('#detailBody').addEventListener('click', (e) => {
+    const openCountry = e.target.closest('[data-open-country]');
+    if (openCountry) {
+      state.filters.country = openCountry.dataset.openCountry;
+      setCountryUI(state.filters.country);
+      persist();
+      closeDetailPanel();
+      runASOSearch(openCountry.dataset.kw);
+      return;
+    }
     const chip = e.target.closest('[data-kw]');
     if (chip) {
       closeDetailPanel();
@@ -2357,9 +2443,11 @@ function initEvents() {
     if (retry) {
       const ctl = channels.get('aso');
       if (!ctl || ctl.signal.aborted) return;
-      state.aso.rows.set(retry.dataset.retryKw, { status: 'loading' });
-      updateAsoRow(retry.dataset.retryKw);
-      loadSimilarRow(retry.dataset.retryKw, ctl);
+      const key = retry.dataset.retryKw;
+      state.aso.rows.set(key, { status: 'loading' });
+      updateAsoRow(key);
+      if (state.aso.mode === 'countries') loadCountryRow(state.aso.keyword, key, ctl);
+      else loadSimilarRow(key, ctl);
       return;
     }
     const action = e.target.closest('[data-action]');
@@ -2510,7 +2598,13 @@ const HELP = {
     keys: ['/'],
   },
   store: { title: 'Store', body: 'Show Google Play, the App Store, or both combined. Applies to keywords and reviews.' },
-  country: { title: 'Country (storefront)', body: 'Rankings and reviews differ per country — pick the market you want to study.', tip: 'With the list open, type a letter to jump and use ↑ ↓ Enter.' },
+  country: {
+    title: 'Country (storefront)',
+    body: 'Rankings and reviews differ per country — pick the market you want to study.',
+    legend: [['All countries', 'Keywords: compare 20 markets side by side, best first'], ['', 'Reviews: every App Store storefront + every Google Play language']],
+    tip: 'With the list open, type a letter to jump and use ↑ ↓ Enter.',
+  },
+  'col-country': { title: 'Country', body: 'The keyword analyzed in each storefront. After loading, rows are sorted by opportunity — the best markets come first.', tip: 'Click a row, then “Open in …” for history and competitor keywords of that country.' },
   language: { title: 'Review language', body: '“All languages” reads the storefront’s main languages together. Pick one language to focus on it.', tip: 'Keyword analysis always uses the storefront’s main language.' },
   export: { title: 'Export to CSV', body: 'Downloads exactly what you see: the keyword table, the filtered reviews, or the full data set. Opens cleanly in Excel and Google Sheets.', keys: ['Ctrl/⌘', 'E'] },
   rating: { title: 'Rating range', body: 'Show only reviews between these star ratings. Applied instantly.', tip: 'Set Max★ to 2★ to surface problems fast.' },
@@ -2605,6 +2699,7 @@ function startTour() {
       target: () => $('#marketFilters'),
       title: 'Pick the market',
       body: 'Store, country and language apply to both workspaces. Rankings and reviews differ per country.',
+      bullets: ['“All countries” compares a keyword across 20 markets', 'In Reviews it reads every storefront at once'],
     },
     {
       before: () => setView('reviews'),
@@ -2675,6 +2770,13 @@ const HINTS = [
     target: () => $('#similarBar .similar-chip'),
     title: 'Explore related keywords',
     body: 'Click a similar keyword to analyze it next — the quickest way to find easier opportunities.',
+  },
+  {
+    id: 'compare-countries',
+    when: () => state.view === 'keywords' && state.aso.main && !isAllCountries() && hints.isSeen('open-keyword'),
+    target: () => $('#countryBtn'),
+    title: 'Compare markets',
+    body: 'Pick “All countries” to analyze this keyword in 20 countries side by side — the best markets are listed first.',
   },
   {
     id: 'filter-reviews',

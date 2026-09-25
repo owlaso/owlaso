@@ -59,5 +59,5 @@ test('csv neutralises spreadsheet formulas and quotes CR/LF', () => {
   assert.match(csv, /,'\+1,/);
   assert.match(csv, /,'@me,/);
   assert.match(csv, /"line1\r\nline2"/);
-  assert.equal(csv.split('\r\n')[0], 'platform,appId,lang,rating,title,text,author,date,version,helpful,replyText,url');
+  assert.equal(csv.split('\r\n')[0], 'platform,appId,country,lang,rating,title,text,author,date,version,helpful,replyText,url');
 });

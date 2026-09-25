@@ -121,3 +121,15 @@ test('group stats: Unicode top terms, stopwords removed, ratings outside 1-5 ign
   assert.equal(stats.avgRating, 3);
   assert.equal(stats.dateFrom, '2026-01-01T00:00:00.000Z');
 });
+
+test('"all" country handling: never silently becomes Albania, Google read once per language', async () => {
+  const { cleanCountry, isAllCountries, googleLanguageStorefronts, STOREFRONTS } = await import('../src/providers.js');
+  assert.equal(cleanCountry('all'), 'us');
+  assert.equal(cleanCountry('ALL'), 'us');
+  assert.equal(isAllCountries('All'), true);
+  const targets = googleLanguageStorefronts(STOREFRONTS);
+  const langs = targets.map((t) => t.lang);
+  assert.equal(new Set(langs).size, langs.length, 'one Google fetch per language');
+  assert.ok(langs.length < STOREFRONTS.length, 'fewer Google fetches than storefronts');
+  assert.deepEqual(targets.find((t) => t.lang === 'tr'), { lang: 'tr', country: 'tr' });
+});

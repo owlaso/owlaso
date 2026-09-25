@@ -83,7 +83,7 @@ test('reviews.csv has a BOM, attachment disposition and formula-safe cells', asy
   assert.equal(res.status, 200);
   assert.ok(res.body.startsWith('﻿'));
   assert.match(res.headers['content-disposition'], /attachment/);
-  assert.match(res.body, /^﻿platform,appId,lang,rating/);
+  assert.match(res.body, /^﻿platform,appId,country,lang,rating/);
 });
 
 test('full-data stream emits groups then a done line', async () => {
@@ -94,4 +94,22 @@ test('full-data stream emits groups then a done line', async () => {
   assert.ok(lines.filter((l) => l.type === 'group').length >= 1);
   assert.equal(lines.at(-1).type, 'done');
   assert.ok(lines.at(-1).totalReviews > 0);
+});
+
+test('"All countries": keyword analysis is per country, reviews cover every storefront', async () => {
+  assert.equal((await call('/api/asosearch?q=habit%20tracker&country=all')).status, 400);
+  const { status, json } = await call('/api/reviews?appId=com.instagram.android&platform=both&country=all&appId2=389801252');
+  assert.equal(status, 200);
+  assert.equal(json.countries.length, 20);
+  const apple = json.reviews.filter((r) => r.platform === 'apple');
+  assert.ok(apple.length > 0 && apple.every((r) => r.country), 'App Store reviews carry their storefront');
+  assert.ok(json.reviews.filter((r) => r.platform === 'google').every((r) => r.lang), 'Google Play reviews carry their language');
+  // Single-storefront endpoints fall back to the US store instead of "al" (Albania).
+  assert.equal((await call('/api/search?q=instagram&platform=all&country=all')).status, 200);
+});
+
+test('lite analyses keep history when asked to (per-country comparison)', async () => {
+  await call('/api/asosearch?q=tracked%20lite&country=tr&lite=1&track=1');
+  const { json } = await call('/api/asosearch/history?q=tracked%20lite&country=tr');
+  assert.equal(json.snapshots.length, 1);
 });

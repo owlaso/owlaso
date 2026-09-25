@@ -661,6 +661,10 @@ kbd {
   vertical-align: 1px;
 }
 .kw-keyword-type.similar { color: var(--text-tertiary); background: var(--surface-alt); }
+.kw-keyword-type.top { color: var(--good); background: var(--good-soft); }
+.kw-country { display: inline-flex; align-items: center; gap: 8px; vertical-align: middle; }
+.review-country { display: inline-flex; align-items: center; gap: 4px; }
+.review-country .flag-img { border-radius: 2px; }
 .kw-updated { font-size: 12px; color: var(--text-secondary); }
 .kw-history-hint {
   display: inline-block;

@@ -1,6 +1,6 @@
 // CSV helpers shared by the browser UI and the Node API (single implementation).
 
-export const REVIEW_CSV_HEADERS = ['platform', 'appId', 'lang', 'rating', 'title', 'text', 'author', 'date', 'version', 'helpful', 'replyText', 'url'];
+export const REVIEW_CSV_HEADERS = ['platform', 'appId', 'country', 'lang', 'rating', 'title', 'text', 'author', 'date', 'version', 'helpful', 'replyText', 'url'];
 
 // Review text is user-generated: a cell starting with = + - @ (or a tab/CR) is
 // executed as a formula by Excel/Sheets. Prefix those with a quote (OWASP CSV injection).

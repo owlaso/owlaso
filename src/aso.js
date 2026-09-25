@@ -328,7 +328,7 @@ async function searchStore(platform, q, country, lang) {
 
 // Searches the store(s) for a keyword, merges the same app across stores and
 // computes ASO metrics. `lite` (used for the similar-keyword rows) skips the
-// competitor probes and the history snapshot.
+// competitor probes and — unless `track` is set — the history snapshot.
 export async function analyzeKeyword({
   keyword,
   store = 'both',
@@ -336,8 +336,10 @@ export async function analyzeKeyword({
   lang = 'en',
   limit = MAX_DETAILS_PER_STORE,
   lite = false,
+  track = false,
 } = {}) {
   const q = normalizeKeyword(keyword);
+  if (String(country).toLowerCase() === 'all') throw badRequest('Keyword analysis runs per country: pick one country (the app compares all countries by analyzing each one).');
   if (q.length < 2) throw badRequest('Keyword must be at least 2 characters.');
   if (q.length > MAX_KEYWORD_LENGTH) throw badRequest(`Keyword must be at most ${MAX_KEYWORD_LENGTH} characters.`);
   const params = { keyword: q, store: normalizeStore(store), country: cleanCountry(country), lang: cleanLang(lang) };
@@ -345,7 +347,7 @@ export async function analyzeKeyword({
 
   if (process.env.MOCK_STORE_DATA === '1') {
     const analysis = mockAnalysis({ q, ...params });
-    if (!lite) saveRankSnapshot(params, analysis);
+    if (!lite || track) saveRankSnapshot(params, analysis);
     return analysis;
   }
 
@@ -419,10 +421,9 @@ export async function analyzeKeyword({
     warnings,
   };
 
-  if (!lite) {
-    analysis.competitorKeywords = await buildCompetitorKeywords({ keyword: q, topApps: apps.slice(0, 5), stores: wants, similar, ...params });
-    saveRankSnapshot(params, analysis);
-  }
+  if (!lite) analysis.competitorKeywords = await buildCompetitorKeywords({ keyword: q, topApps: apps.slice(0, 5), stores: wants, similar, ...params });
+  // `track` keeps history for quick analyses too (used by the all-countries comparison).
+  if (!lite || track) saveRankSnapshot(params, analysis);
   return analysis;
 }
 

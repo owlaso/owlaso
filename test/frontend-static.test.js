@@ -194,3 +194,10 @@ test('guided tour, contextual tips and help entry points are wired', async () =>
   assert.match(app, /e\.key === '\?'/);
   assert.match(app, /const HINTS = \[/);
 });
+
+test('country picker offers "All countries" with a per-country keyword comparison', () => {
+  assert.match(app, /\{ code: 'all', cc: 'world', name: 'All countries' \}/);
+  assert.match(app, /async function runCountryComparison/);
+  assert.match(app, /lite: '1', track: '1'/);
+  assert.match(app, /const concreteCountry = /);
+});

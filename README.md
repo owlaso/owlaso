@@ -59,7 +59,10 @@ Outputs land in `dist/`.
 1. **Add apps** — click **+** in the sidebar and search by name, package name (`com.spotify.music`) or App Store id (`324684580`). Apps found on both stores are merged into one entry.
 2. **Keywords** — type a keyword and press Enter. The analyzed keyword and 5 similar ones are scored; the **Position** column shows where the selected app ranks on each store. Click a row for details, trend charts and competitor keywords.
 3. **Reviews** — select an app. Filter by keyword (all words must match) and star range instantly; change store, country, language or the fetch size to load new data. **Load more** raises the fetch size. **Full data** pulls everything in every language.
-4. **Export** — `Ctrl/⌘+E` exports what you are looking at as CSV.
+4. **All countries** — pick *All countries* in the country picker.
+   - *Keywords*: the keyword is analyzed in all 20 storefronts, one row per country, sorted by opportunity (best markets first). Click a row → **Open in …** for that country's history and competitor keywords.
+   - *Reviews / Full data*: reads every App Store storefront (Apple keeps reviews per country) plus every Google Play language (Google keeps reviews per language, not per country). Each review shows where it came from.
+5. **Export** — `Ctrl/⌘+E` exports what you are looking at as CSV.
 
 Shortcuts: `/` focus search · `A` add app · `?` guided tour · `←/→` previous/next review · `Esc` close dialog.
 
@@ -107,10 +110,10 @@ All endpoints are `GET` and return JSON unless noted. Invalid input returns `400
 |---|---|
 | `/api/health` | — (returns `version`, `mock`) |
 | `/api/search` | `q`, `platform=all\|google\|apple`, `country`, `lang`, `limit` |
-| `/api/asosearch` | `q`, `store=both\|google\|apple`, `country`, `lang`, `lite=1` (skip competitor probes + history) |
+| `/api/asosearch` | `q`, `store=both\|google\|apple`, `country` (one storefront), `lang`, `lite=1` (skip competitor probes + history), `track=1` (keep history for a lite run) |
 | `/api/asosearch/history` | `q`, `store`, `country`, `lang` → daily snapshots incl. per-store rankings |
 | `/api/app-details` | `appId`, `platform`, `appId2`, `store=both`, `country`, `lang` |
-| `/api/reviews` | `appId`, `platform=google\|apple\|both`, `appPlatform`, `appId2`, `title`, `developer`, `country`, `lang` (`all` = multi-language), `max`, `sort`, filters: `stars`, `minRating`, `maxRating`, `allKeywords`, `anyKeyword`, `keyword`, `dateFrom`, `dateTo`, `version`, `minLength`, `replyOnly` |
+| `/api/reviews` | `appId`, `platform=google\|apple\|both`, `appPlatform`, `appId2`, `title`, `developer`, `country` (`all` = every storefront), `lang` (`all` = multi-language), `max`, `sort`, filters: `stars`, `minRating`, `maxRating`, `allKeywords`, `anyKeyword`, `keyword`, `dateFrom`, `dateTo`, `version`, `minLength`, `replyOnly` |
 | `/api/reviews.csv` | Same as `/api/reviews`; CSV download |
 | `/api/reviews.full.stream` | `appId`, `platform`, `appPlatform`, `appId2`, `title`, `country` → NDJSON: `group` lines, then `done` |
 | `/api/reviews.full` | Same, as one JSON document |

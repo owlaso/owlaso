@@ -73,7 +73,9 @@ async function appDetails(q) {
 }
 
 function reviewParams(q) {
-  return { ...q, country: cleanCountry(q.country), platform: q.platform || appPlatformOf(q.appPlatform, q.appId) };
+  // Reviews and full data understand country=all (every storefront).
+  const country = String(q.country || '').toLowerCase() === 'all' ? 'all' : cleanCountry(q.country);
+  return { ...q, country, platform: q.platform || appPlatformOf(q.appPlatform, q.appId) };
 }
 
 const routes = {
@@ -91,6 +93,7 @@ const routes = {
   },
 
   '/api/asosearch': async (q) => {
+    if (String(q.country || '').toLowerCase() === 'all') throw badRequest('Keyword analysis runs per country: pick one country.');
     const country = cleanCountry(q.country);
     const data = await analyzeKeyword({
       keyword: q.q ?? q.keyword,
@@ -99,6 +102,7 @@ const routes = {
       lang: requestLang(q.lang, country),
       limit: q.limit,
       lite: q.lite === '1',
+      track: q.track === '1',
     });
     return json(200, data);
   },

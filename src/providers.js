@@ -40,9 +40,19 @@ const COUNTRY_LANGUAGES = {
   pl: ['pl'], se: ['sv'], id: ['id'], sa: ['ar'], ae: ['ar', 'en'], eg: ['ar']
 };
 
+// Storefronts covered by "All countries" (same list as the UI's country picker).
+export const STOREFRONTS = ['us', 'tr', 'gb', 'de', 'fr', 'it', 'es', 'br', 'jp', 'kr', 'in', 'ru', 'au', 'ca', 'mx', 'nl', 'pl', 'se', 'id', 'sa'];
+
 // ── Input normalisation ───────────────────────────────────────────────────
 
+export function isAllCountries(country) {
+  return String(country || '').trim().toLowerCase() === 'all';
+}
+
+// "all" is only meaningful where a caller handles it explicitly (reviews / full
+// data); everywhere else it falls back to the US store instead of becoming "al".
 export function cleanCountry(country) {
+  if (isAllCountries(country)) return 'us';
   return String(country || 'us').toLowerCase().replace(/[^a-z]/gu, '').slice(0, 2) || 'us';
 }
 
@@ -956,6 +966,7 @@ function summarizeSources(specs, settled) {
 }
 
 export async function fetchReviews(params = {}) {
+  if (isAllCountries(params.country)) return fetchReviewsAllCountries(params);
   const platform = normalizePlatform(params.platform);
   const appId = String(params.appId || '').trim();
 
@@ -1021,6 +1032,7 @@ async function fetchGoogleLanguages({ appId, country, languages, pages, maxPerSo
 }
 
 export async function fetchReviewsMulti(params = {}) {
+  if (isAllCountries(params.country)) return fetchReviewsAllCountries(params);
   const platform = normalizePlatform(params.platform, 'both');
   const appId = String(params.appId || '').trim();
   const country = cleanCountry(params.country);
@@ -1055,6 +1067,114 @@ export async function fetchReviewsMulti(params = {}) {
     totalFetched: merged.length,
     totalAfterFilters: filtered.length,
     meta: { sources, errors, warnings, notes, moreAvailable: sources.some((s) => s.moreAvailable) }
+  };
+}
+
+// ── All countries ─────────────────────────────────────────────────────────
+// App Store reviews belong to a storefront, so every country is read. Google
+// Play keys reviews by language (country barely changes them), so it is read
+// once per distinct language, from a storefront that speaks it.
+export function googleLanguageStorefronts(countries = STOREFRONTS) {
+  const byLang = new Map();
+  for (const country of countries) {
+    const lang = primaryLanguage(country);
+    if (!byLang.has(lang)) byLang.set(lang, country);
+  }
+  return [...byLang].map(([lang, country]) => ({ lang, country }));
+}
+
+function mockAllCountries(params) {
+  const platform = normalizePlatform(params.platform);
+  const appId = String(params.appId || '').trim() || 'com.example.app';
+  const stores = platform === 'both' ? ['google', 'apple'] : [platform];
+  const rows = [];
+  for (const store of stores) {
+    if (store === 'apple') {
+      for (const country of ['us', 'tr']) {
+        for (const r of mockReviews('apple', '389801252')) rows.push({ ...r, id: `${r.id}-${country}`, country });
+      }
+    } else {
+      for (const r of mockReviews('google', appId)) rows.push({ ...r, lang: 'en' });
+    }
+  }
+  rows.sort(byDateDesc);
+  const filtered = applyReviewFilters(rows, params);
+  return {
+    platform, appId, countries: STOREFRONTS, reviews: filtered, totalFetched: rows.length, totalAfterFilters: filtered.length,
+    meta: { mock: true, sources: [], errors: [], warnings: [], notes: [], moreAvailable: false },
+  };
+}
+
+export async function fetchReviewsAllCountries(params = {}) {
+  if (process.env.MOCK_STORE_DATA === '1') return mockAllCountries(params);
+  const platform = normalizePlatform(params.platform);
+  const appId = String(params.appId || '').trim();
+  const max = asInt(params.max, 200, 1, MAX_REVIEWS);
+  // The "Fetch" budget is spread over the markets, with at least one full page each.
+  const perSource = Math.min(APPLE_REVIEW_MAX, Math.max(APPLE_REVIEW_PAGE_SIZE, Math.ceil(max / 4)));
+  const sort = String(params.sort || 'newest').toLowerCase();
+
+  const { specs, warnings } = await resolveListings({ ...params, platform, country: 'us', lang: 'en' });
+  if (!specs.length) throw badRequest(warnings[0] || 'No store listing available for this app.');
+
+  const tasks = [];
+  for (const spec of specs) {
+    if (spec.platform === 'apple') {
+      for (const country of STOREFRONTS) tasks.push({ spec, country, lang: primaryLanguage(country) });
+    } else {
+      for (const { lang, country } of googleLanguageStorefronts()) tasks.push({ spec, country, lang });
+    }
+  }
+
+  const results = await mapWithConcurrency(tasks, 5, async (task) => {
+    try {
+      const result = await fetchStoreReviews(task.spec.platform, { appId: task.spec.appId, country: task.country, lang: task.lang, sort, max: perSource });
+      return { task, result };
+    } catch (error) {
+      return { task, error };
+    }
+  });
+
+  const rows = [];
+  const errors = [];
+  const perStore = {};
+  let moreAvailable = false;
+  for (const { task, result, error } of results) {
+    const store = task.spec.platform;
+    perStore[store] ||= { platform: store, appId: task.spec.appId, matchedTitle: task.spec.matchedTitle, fetched: 0, markets: 0, failed: 0 };
+    if (error) {
+      perStore[store].failed += 1;
+      continue;
+    }
+    perStore[store].markets += 1;
+    perStore[store].fetched += result.rows.length;
+    moreAvailable ||= Boolean(result.meta?.moreAvailable);
+    for (const row of result.rows) rows.push(store === 'apple' ? { ...row, country: task.country } : { ...row, lang: task.lang });
+  }
+  for (const s of Object.values(perStore)) {
+    if (s.failed && !s.markets) errors.push(`${storeName(s.platform)} (${s.appId}): every ${s.platform === 'apple' ? 'storefront' : 'language'} failed`);
+    else if (s.failed) warnings.push(`${storeName(s.platform)}: ${s.failed} ${s.platform === 'apple' ? 'storefront(s)' : 'language(s)'} could not be read`);
+  }
+  const sources = Object.values(perStore).filter((s) => s.markets).map((s) => ({ ...s, moreAvailable }));
+  if (!sources.length) throw new Error(errors.join(' | ') || 'No reviews could be fetched.');
+
+  const merged = dedupeReviews(rows);
+  if (sort === 'newest') merged.sort(byDateDesc);
+  const filtered = applyReviewFilters(merged, params);
+  return {
+    platform,
+    appId,
+    countries: STOREFRONTS,
+    reviews: filtered,
+    totalFetched: merged.length,
+    totalAfterFilters: filtered.length,
+    meta: {
+      sources,
+      errors,
+      warnings,
+      notes: ['All countries: App Store reviews come from each storefront; Google Play reviews are grouped by language, because Google does not separate them by country.'],
+      moreAvailable,
+    },
   };
 }
 
@@ -1131,7 +1251,7 @@ export { computeGroupStats };
 function mockFullData(platform, appId, country, onGroup) {
   const stores = platform === 'both' ? ['google', 'apple'] : [platform];
   const groups = stores.map((store) => {
-    const rows = mockReviews(store, store === 'apple' ? '389801252' : appId).map((r) => (store === 'google' ? { ...r, lang: 'en' } : r));
+    const rows = mockReviews(store, store === 'apple' ? '389801252' : appId).map((r) => (store === 'google' ? { ...r, lang: 'en' } : { ...r, country: country === 'all' ? 'us' : country }));
     const lang = store === 'apple' ? 'all' : 'en';
     return { platform: store, lang, langLabel: LANGUAGE_LABELS[lang], ...computeGroupStats(rows), reviews: rows, sources: [{ platform: store, appId }], meta: { mock: true } };
   });
@@ -1143,21 +1263,30 @@ function mockFullData(platform, appId, country, onGroup) {
 export async function fetchAllReviewsStream(params = {}, { onGroup, signal } = {}) {
   const appId = String(params.appId || '').trim();
   if (!appId) throw badRequest('appId is required.');
-  const country = cleanCountry(params.country);
+  const allCountries = isAllCountries(params.country);
+  const country = allCountries ? 'all' : cleanCountry(params.country);
   const platform = normalizePlatform(params.platform);
-  const languages = languagesForCountry(country);
+  const languages = languagesForCountry(allCountries ? 'us' : country);
   if (process.env.MOCK_STORE_DATA === '1') return mockFullData(platform, appId, country, onGroup);
 
-  const { specs, warnings } = await resolveListings({ ...params, platform, country, lang: languages[0] });
+  const { specs, warnings } = await resolveListings({ ...params, platform, country: allCountries ? 'us' : country, lang: languages[0] });
   if (!specs.length) throw badRequest(warnings[0] || 'No store listing available for this app.');
 
+  // One task per App Store storefront (all of them for "All countries") and one
+  // per Google Play language.
+  const appleCountries = allCountries ? STOREFRONTS : [country];
+  const googleTargets = allCountries
+    ? ALL_LANGUAGES.map((lang) => ({ lang, country: STOREFRONTS.find((c) => primaryLanguage(c) === lang) || 'us' }))
+    : languages.map((lang) => ({ lang, country }));
   const tasks = [];
   for (const spec of specs) {
     if (spec.platform === 'apple') {
-      tasks.push({ spec, lang: 'all', producer: () => fetchAppleReviews({ appId: spec.appId, country, lang: languages[0], max: APPLE_REVIEW_MAX }) });
+      for (const c of appleCountries) {
+        tasks.push({ spec, lang: 'all', country: c, producer: () => fetchAppleReviews({ appId: spec.appId, country: c, lang: primaryLanguage(c), max: APPLE_REVIEW_MAX }) });
+      }
     } else {
-      for (const lang of languages) {
-        tasks.push({ spec, lang, producer: () => fetchGoogleReviews({ appId: spec.appId, country, lang, max: FULL_GOOGLE_MAX_PER_LANG }) });
+      for (const { lang, country: c } of googleTargets) {
+        tasks.push({ spec, lang, producer: () => fetchGoogleReviews({ appId: spec.appId, country: c, lang, max: FULL_GOOGLE_MAX_PER_LANG }) });
       }
     }
   }
@@ -1191,12 +1320,13 @@ export async function fetchAllReviewsStream(params = {}, { onGroup, signal } = {
         }
         seen.add(key);
         total += 1;
-        rows.push(task.lang === 'all' ? row : { ...row, lang: task.lang });
+        rows.push(task.country ? { ...row, country: task.country } : { ...row, lang: task.lang });
       }
       const stats = computeGroupStats(rows);
       const group = {
         platform: task.spec.platform,
         lang: task.lang,
+        country: task.country || null,
         langLabel: LANGUAGE_LABELS[task.lang] || task.lang,
         ...stats,
         reviews: rows,
