@@ -1,4 +1,4 @@
-# OwlASO — ASO Keyword Tracking & App Store Review Analytics
+# OwlASO ASO Keyword Tracking & App Store Review Analytics
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
