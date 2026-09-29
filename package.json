@@ -1,6 +1,6 @@
 {
   "name": "owlaso",
-  "version": "1.6.0-beta.1",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "description": "OwlASO — desktop app for ASO keyword analysis and app store review monitoring.",
