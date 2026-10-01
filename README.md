@@ -1,6 +1,10 @@
 # OwlASO ASO Keyword Tracking & App Store Review Analytics
 
+<div align="center">
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+</div>
 
 **OwlASO** is a desktop (and local web) app for ASO keyword research and app store review monitoring across **Google Play** and the **App Store**.
 
