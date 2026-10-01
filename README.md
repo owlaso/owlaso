@@ -72,13 +72,6 @@ Shortcuts: `/` focus search · `A` add app · `?` guided tour · `←/→` previ
 - **Help tooltips** — hover (or keyboard-focus) any control or column title for what it does, how to read it (e.g. what counts as a high difficulty) and its shortcut.
 - **Contextual tips** — the first time you reach a feature, a small tip points at the next useful step (select an app to see its rank, filter reviews, compare apps, Full data, export). Each tip shows once; turn them off or reset them in Settings.
 
-## Security model
-
-- The web server binds to **127.0.0.1** by default. Requests whose `Host` is not `localhost`/an IP literal are rejected (DNS-rebinding protection) and cross-site browser requests to `/api/*` are refused (CSRF protection).
-- Strict Content-Security-Policy, `nosniff`, `frame-ancestors 'none'`, no inline scripts.
-- The Electron renderer is sandboxed with context isolation; only `http(s)` links are opened externally, in-app navigation away from the app is blocked, and permission requests are denied.
-- Rank-history files are named from a hash of the query, so request parameters can never pick the file path.
-
 ## Configuration (environment variables)
 
 | Variable | Default | Purpose |
