@@ -12,7 +12,7 @@
 </head>
 <body>
   <div class="app-canvas">
-    <aside class="sidebar" id="sidebar" aria-label="Tracked apps">
+    <aside class="sidebar" id="sidebar" aria-label="Tracked apps" data-i18n-aria-label="Tracked apps">
       <div class="sidebar-brand">
         <div class="sidebar-brand-inner">
           <svg class="sidebar-logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -31,11 +31,11 @@
 
       <section class="sidebar-section">
         <div class="sidebar-section-header">
-          <span class="section-label" id="myAppsLabel">My Apps</span>
-          <button class="icon-btn" id="createFolderBtn" type="button" aria-label="New folder" data-help="new-folder" data-help-placement="right">
+          <span class="section-label" id="myAppsLabel" data-i18n="My Apps">My Apps</span>
+          <button class="icon-btn" id="createFolderBtn" type="button" aria-label="New folder" data-i18n-aria-label="New folder" data-help="new-folder" data-help-placement="right">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 3A1.5 1.5 0 000 4.5v7A1.5 1.5 0 001.5 13h13a1.5 1.5 0 001.5-1.5v-7A1.5 1.5 0 0014.5 3H8.621a1.5 1.5 0 01-1.06-.44L6.44 1.44A1.5 1.5 0 005.378 1H1.5z"/><path fill="var(--surface)" d="M7.5 7h1v2h2v1h-2v2h-1v-2h-2V9h2V7z"/></svg>
           </button>
-          <button class="icon-btn" id="addAppBtn2" type="button" aria-label="Add app" data-help="add-app" data-help-placement="right">
+          <button class="icon-btn" id="addAppBtn2" type="button" aria-label="Add app" data-i18n-aria-label="Add app" data-help="add-app" data-help-placement="right">
             <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M7 2v10M2 7h10"/></svg>
           </button>
         </div>
@@ -45,8 +45,8 @@
       <div class="sidebar-footer">
         <div class="sidebar-footer-meta" id="footerMeta">No apps tracked</div>
         <div class="sidebar-footer-actions">
-        <button class="icon-btn help-btn" id="helpBtn" type="button" aria-label="Guided tour" data-help="help" data-help-placement="right">?</button>
-        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" data-help="settings" data-help-placement="right">
+        <button class="icon-btn help-btn" id="helpBtn" type="button" aria-label="Guided tour" data-i18n-aria-label="Guided tour" data-help="help" data-help-placement="right">?</button>
+        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" data-i18n-aria-label="Settings" data-help="settings" data-help-placement="right">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="10" cy="10" r="3"/>
             <path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.22 4.22l1.06 1.06M14.72 14.72l1.06 1.06M4.22 15.78l1.06-1.06M14.72 5.28l1.06-1.06"/>
@@ -60,34 +60,34 @@
       <!-- ── Toolbar ────────────────────────────── -->
       <header class="toolbar">
         <div class="toolbar-left">
-          <div class="view-tabs" role="tablist" aria-label="View">
-            <button class="view-tab active" id="tabKeywords" type="button" role="tab" aria-selected="true" aria-controls="tableContainer" data-view="keywords" data-help="tab-keywords">Keywords</button>
-            <button class="view-tab" id="tabReviews" type="button" role="tab" aria-selected="false" aria-controls="tableContainer" data-view="reviews" data-help="tab-reviews">Reviews</button>
+          <div class="view-tabs" role="tablist" aria-label="View" data-i18n-aria-label="View">
+            <button class="view-tab active" id="tabKeywords" type="button" role="tab" aria-selected="true" aria-controls="tableContainer" data-view="keywords" data-help="tab-keywords" data-i18n="Keywords">Keywords</button>
+            <button class="view-tab" id="tabReviews" type="button" role="tab" aria-selected="false" aria-controls="tableContainer" data-view="reviews" data-help="tab-reviews" data-i18n="Reviews">Reviews</button>
           </div>
           <div class="tb-search-group" data-view-only="keywords">
-            <input class="tb-search" id="asoSearchInput" type="search" placeholder="Analyze a keyword, e.g. habit tracker" aria-label="Keyword to analyze" data-help="aso-search" autocomplete="off" spellcheck="false" maxlength="100">
-            <button class="tb-search-btn" id="asoSearchBtn" type="button" aria-label="Analyze keyword" data-help="aso-search">
+            <input class="tb-search" id="asoSearchInput" type="search" placeholder="Analyze a keyword, e.g. habit tracker" data-i18n-placeholder="Analyze a keyword, e.g. habit tracker" aria-label="Keyword to analyze" data-i18n-aria-label="Keyword to analyze" data-help="aso-search" autocomplete="off" spellcheck="false" maxlength="100">
+            <button class="tb-search-btn" id="asoSearchBtn" type="button" aria-label="Analyze keyword" data-i18n-aria-label="Analyze keyword" data-help="aso-search">
               <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
             </button>
           </div>
           <div class="tb-search-group hidden" data-view-only="reviews">
-            <input class="tb-search" id="commentSearchInput" type="search" placeholder="Select an app first…" aria-label="Filter reviews by keyword" data-help="review-search" autocomplete="off" spellcheck="false" maxlength="200" disabled>
-            <button class="tb-search-btn" id="commentSearchBtn" type="button" aria-label="Filter reviews" data-help="review-search" disabled>
+            <input class="tb-search" id="commentSearchInput" type="search" placeholder="Select an app first…" data-i18n-placeholder="Select an app first…" aria-label="Filter reviews by keyword" data-i18n-aria-label="Filter reviews by keyword" data-help="review-search" autocomplete="off" spellcheck="false" maxlength="200" disabled>
+            <button class="tb-search-btn" id="commentSearchBtn" type="button" aria-label="Filter reviews" data-i18n-aria-label="Filter reviews" data-help="review-search" disabled>
               <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.5"/><path d="M16 16l-4-4"/></svg>
             </button>
           </div>
-          <button class="review-app-label hidden" id="reviewAppLabel" type="button" data-tip="Show app details">for <strong id="reviewAppName"></strong></button>
+          <button class="review-app-label hidden" id="reviewAppLabel" type="button" data-tip="Show app details" data-i18n-tip="Show app details"><span data-i18n="for">for</span> <strong id="reviewAppName"></strong></button>
         </div>
         <div class="toolbar-right">
           <div class="tb-group" id="marketFilters">
-          <select class="tb-select" id="storeFilter" aria-label="Store" data-help="store">
-            <option value="both">All stores</option>
+          <select class="tb-select" id="storeFilter" aria-label="Store" data-i18n-aria-label="Store" data-help="store">
+            <option value="both" data-i18n="All stores">All stores</option>
             <option value="google">Google Play</option>
             <option value="apple">App Store</option>
           </select>
           <!-- Custom country picker -->
           <div class="custom-select-wrap" id="countryWrap">
-            <button class="country-btn" id="countryBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Country" data-help="country">
+            <button class="country-btn" id="countryBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Country" data-i18n-aria-label="Country" data-help="country">
               <span class="flag-emoji" id="countryFlag"></span>
               <span class="country-code" id="countryCode">US</span>
             </button>
@@ -95,7 +95,7 @@
           </div>
           <!-- Custom language picker -->
           <div class="custom-select-wrap" id="langWrap">
-            <button class="country-btn" id="langBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Language" data-help="language">
+            <button class="country-btn" id="langBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Language" data-i18n-aria-label="Language" data-help="language">
               <span class="flag-emoji" id="langFlag"></span>
               <span class="country-code" id="langCode">All</span>
             </button>
@@ -103,7 +103,7 @@
           </div>
           </div>
           <span class="tb-sep" aria-hidden="true"></span>
-          <button class="pill-btn" id="exportBtn" type="button" data-help="export">Export</button>
+          <button class="pill-btn" id="exportBtn" type="button" data-help="export" data-i18n="Export">Export</button>
         </div>
       </header>
 
@@ -113,9 +113,9 @@
       <!-- ── Reviews view: filters + fetch summary ── -->
       <div class="subbar review-bar hidden" id="reviewBar" data-view-only="reviews">
         <div class="review-filters">
-          <label class="subbar-label" for="starMin">Rating</label>
+          <label class="subbar-label" for="starMin" data-i18n="Rating">Rating</label>
           <select class="tb-select tb-select-sm" id="starMin" aria-label="Minimum stars" data-help="rating">
-            <option value="">Min★</option>
+            <option value="" data-i18n="Min★">Min★</option>
             <option value="1">1★</option>
             <option value="2">2★</option>
             <option value="3">3★</option>
@@ -124,14 +124,14 @@
           </select>
           <span class="subbar-dash" aria-hidden="true">–</span>
           <select class="tb-select tb-select-sm" id="starMax" aria-label="Maximum stars" data-help="rating">
-            <option value="">Max★</option>
+            <option value="" data-i18n="Max★">Max★</option>
             <option value="1">1★</option>
             <option value="2">2★</option>
             <option value="3">3★</option>
             <option value="4">4★</option>
             <option value="5">5★</option>
           </select>
-          <label class="subbar-label" for="maxReviews">Fetch</label>
+          <label class="subbar-label" for="maxReviews" data-i18n="Fetch">Fetch</label>
           <select class="tb-select tb-select-sm" id="maxReviews" aria-label="Reviews to fetch per store" data-help="fetch-size">
             <option value="250">250</option>
             <option value="500">500</option>
@@ -139,7 +139,7 @@
             <option value="2000">2K</option>
             <option value="5000">5K</option>
           </select>
-          <button class="pill-btn pill-accent" id="fullDataBtn" type="button" data-help="full-data">Full data</button>
+          <button class="pill-btn pill-accent" id="fullDataBtn" type="button" data-help="full-data" data-i18n="Full data">Full data</button>
         </div>
         <!-- Review summary (fetch counts, store limits, warnings) -->
         <div class="review-summary hidden" id="reviewSummary" role="status" aria-live="polite"></div>
@@ -150,32 +150,32 @@
         <table class="kw-table" id="keywordTable">
           <thead id="kwTableHead">
             <tr>
-              <th class="kw-th kw-col-keyword" scope="col">Keyword / Topic</th>
-              <th class="kw-th kw-col-updated" scope="col">Last Updated</th>
-              <th class="kw-th kw-col-pop" scope="col">Popularity</th>
-              <th class="kw-th kw-col-diff" scope="col">Difficulty</th>
-              <th class="kw-th kw-col-pos" scope="col">Position</th>
-              <th class="kw-th kw-col-apps" scope="col">Apps in Ranking</th>
+              <th class="kw-th kw-col-keyword" scope="col" data-i18n="Keyword / Topic">Keyword / Topic</th>
+              <th class="kw-th kw-col-updated" scope="col" data-i18n="Last Updated">Last Updated</th>
+              <th class="kw-th kw-col-pop" scope="col" data-i18n="Popularity">Popularity</th>
+              <th class="kw-th kw-col-diff" scope="col" data-i18n="Difficulty">Difficulty</th>
+              <th class="kw-th kw-col-pos" scope="col" data-i18n="Position">Position</th>
+              <th class="kw-th kw-col-apps" scope="col" data-i18n="Apps in Ranking">Apps in Ranking</th>
             </tr>
           </thead>
           <tbody id="tableBody"></tbody>
         </table>
         <div class="empty-state" id="emptyState">
           <div class="empty-icon" aria-hidden="true">🔎</div>
-          <div class="empty-title">Analyze a keyword</div>
-          <div class="empty-desc">See who ranks for it, how popular and competitive it is, and where your tracked apps stand.</div>
+          <div class="empty-title" data-i18n="Analyze a keyword">Analyze a keyword</div>
+          <div class="empty-desc" data-i18n="See who ranks for it, how popular and competitive it is, and where your tracked apps stand.">See who ranks for it, how popular and competitive it is, and where your tracked apps stand.</div>
           <div class="empty-actions" id="emptyActions"></div>
         </div>
         <div class="error-state hidden" id="errorState" role="alert">
           <div class="error-icon" aria-hidden="true">⚠️</div>
-          <div class="error-title">Something went wrong</div>
+          <div class="error-title" data-i18n="Something went wrong">Something went wrong</div>
           <div class="error-message" id="errorMessage">An error occurred.</div>
-          <button class="pill-btn" id="retryBtn" type="button">Try again</button>
+          <button class="pill-btn" id="retryBtn" type="button" data-i18n="Try again">Try again</button>
         </div>
       </div>
 
       <!-- ── Full Data Panel ─────────────────────── -->
-      <section class="full-data-panel hidden" id="fullDataPanel" aria-label="Full review data">
+      <section class="full-data-panel hidden" id="fullDataPanel" aria-label="Full review data" data-i18n-aria-label="Full review data">
         <div class="full-data-header" id="fullDataHeader"></div>
         <div class="full-data-stores" id="fullDataStores"></div>
       </section>
@@ -197,20 +197,20 @@
   <div class="modal-overlay hidden" id="addAppModal">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addAppTitle">
       <div class="modal-header">
-        <h2 class="modal-title" id="addAppTitle">Add app to track</h2>
+        <h2 class="modal-title" id="addAppTitle" data-i18n="Add app to track">Add app to track</h2>
         <button class="detail-close" id="closeAddAppModal" type="button" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="modal-search-row">
-          <input class="modal-search-input" id="modalSearchInput" data-autofocus placeholder="App name or id (com.spotify.music, 324684580)…" type="search" autocomplete="off" spellcheck="false" aria-label="Search apps">
-          <select class="tb-select" id="modalPlatform" aria-label="Store to search">
-            <option value="both">All stores</option>
+          <input class="modal-search-input" id="modalSearchInput" data-autofocus placeholder="App name or id (com.spotify.music, 324684580)…" data-i18n-placeholder="App name or id (com.spotify.music, 324684580)…" type="search" autocomplete="off" spellcheck="false" aria-label="Search apps" data-i18n-aria-label="Search apps">
+          <select class="tb-select" id="modalPlatform" aria-label="Store to search" data-i18n-aria-label="Store to search">
+            <option value="both" data-i18n="All stores">All stores</option>
             <option value="google">Google Play</option>
             <option value="apple">App Store</option>
           </select>
         </div>
         <div class="modal-results" id="modalResults" aria-live="polite">
-          <div class="modal-empty">Search for an app to add it to your tracking list.</div>
+          <div class="modal-empty" data-i18n="Search for an app to add it to your tracking list.">Search for an app to add it to your tracking list.</div>
         </div>
       </div>
     </div>
@@ -242,10 +242,10 @@
   <div class="modal-overlay hidden" id="reviewModal">
     <div class="modal modal-review" role="dialog" aria-modal="true" aria-labelledby="reviewModalTitle">
       <div class="modal-header">
-        <h2 class="modal-title" id="reviewModalTitle">Review</h2>
+        <h2 class="modal-title" id="reviewModalTitle" data-i18n="Review">Review</h2>
         <div class="modal-header-actions">
-          <button class="icon-btn" id="prevReviewBtn" type="button" aria-label="Previous review" title="Previous (←)">‹</button>
-          <button class="icon-btn" id="nextReviewBtn" type="button" aria-label="Next review" title="Next (→)">›</button>
+          <button class="icon-btn" id="prevReviewBtn" type="button" aria-label="Previous review" data-i18n-aria-label="Previous review" title="Previous (←)" data-i18n-title="Previous (←)">‹</button>
+          <button class="icon-btn" id="nextReviewBtn" type="button" aria-label="Next review" data-i18n-aria-label="Next review" title="Next (→)" data-i18n-title="Next (→)">›</button>
           <button class="detail-close" id="closeReviewModal" type="button" aria-label="Close">&times;</button>
         </div>
       </div>
@@ -273,25 +273,25 @@
         <circle cx="51" cy="43" r="3" fill="white"/>
         <polygon points="37.5,52 40,56.5 42.5,52" fill="white" opacity="0.85"/>
       </svg>
-      <h2 class="onboarding-title" id="onboardingTitle">Welcome to OwlASO</h2>
-      <div class="onboarding-desc">Research App Store &amp; Google Play keywords and monitor what users say — in one place.</div>
+      <h2 class="onboarding-title" id="onboardingTitle" data-i18n="Welcome to OwlASO">Welcome to OwlASO</h2>
+      <div class="onboarding-desc" data-i18n="Research App Store &amp; Google Play keywords and monitor what users say — in one place.">Research App Store &amp; Google Play keywords and monitor what users say — in one place.</div>
       <ol class="onboarding-steps">
         <li class="onboarding-step">
           <span class="onboarding-step-num" aria-hidden="true">1</span>
-          <span class="onboarding-step-text"><strong>Add your apps</strong> — the + in the sidebar tracks any app from either store.</span>
+          <span class="onboarding-step-text"><strong data-i18n="Add your apps">Add your apps</strong><span data-i18n=" — the + in the sidebar tracks any app from either store."> — the + in the sidebar tracks any app from either store.</span></span>
         </li>
         <li class="onboarding-step">
           <span class="onboarding-step-num" aria-hidden="true">2</span>
-          <span class="onboarding-step-text"><strong>Keywords</strong> — analyze a keyword to see popularity, difficulty and where the selected app ranks.</span>
+          <span class="onboarding-step-text"><strong data-i18n="Keywords">Keywords</strong><span data-i18n=" — analyze a keyword to see popularity, difficulty and where the selected app ranks."> — analyze a keyword to see popularity, difficulty and where the selected app ranks.</span></span>
         </li>
         <li class="onboarding-step">
           <span class="onboarding-step-num" aria-hidden="true">3</span>
-          <span class="onboarding-step-text"><strong>Reviews</strong> — pick an app to read and filter its reviews from both stores; Ctrl/⌘-click to compare apps.</span>
+          <span class="onboarding-step-text"><strong data-i18n="Reviews">Reviews</strong><span data-i18n=" — pick an app to read and filter its reviews from both stores; Ctrl/⌘-click to compare apps."> — pick an app to read and filter its reviews from both stores; Ctrl/⌘-click to compare apps.</span></span>
         </li>
       </ol>
-      <button class="pill-btn pill-primary pill-block" id="onboardingDone" type="button" data-autofocus>Add my first app</button>
-      <button class="pill-btn pill-block onboarding-tour" id="onboardingTour" type="button">Show me around (1 min tour)</button>
-      <button class="link-btn" id="onboardingSkip" type="button">Skip for now</button>
+      <button class="pill-btn pill-primary pill-block" id="onboardingDone" type="button" data-autofocus data-i18n="Add my first app">Add my first app</button>
+      <button class="pill-btn pill-block onboarding-tour" id="onboardingTour" type="button" data-i18n="Show me around (1 min tour)">Show me around (1 min tour)</button>
+      <button class="link-btn" id="onboardingSkip" type="button" data-i18n="Skip for now">Skip for now</button>
     </div>
   </div>
 
@@ -299,83 +299,96 @@
   <div class="modal-overlay hidden" id="settingsModal">
     <div class="modal modal-settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="modal-header">
-        <h2 class="modal-title" id="settingsTitle">Settings</h2>
+        <h2 class="modal-title" id="settingsTitle" data-i18n="Settings">Settings</h2>
         <button class="detail-close" id="closeSettingsModal" type="button" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body settings-body">
         <section class="settings-section">
-          <div class="settings-section-label">Appearance</div>
+          <div class="settings-section-label" data-i18n="Appearance">Appearance</div>
           <div class="theme-picker" role="radiogroup" aria-label="Theme">
             <button class="theme-btn" type="button" role="radio" aria-checked="false" data-theme="light">
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="4"/><path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.22 4.22l1.06 1.06M14.72 14.72l1.06 1.06M4.22 15.78l1.06-1.06M14.72 5.28l1.06-1.06"/></svg>
-              Light
+              <span data-i18n="Light">Light</span>
             </button>
             <button class="theme-btn" type="button" role="radio" aria-checked="false" data-theme="dark">
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M17.5 12A7.5 7.5 0 0 1 8 2.5a7.5 7.5 0 1 0 9.5 9.5z"/></svg>
-              Dark
+              <span data-i18n="Dark">Dark</span>
             </button>
             <button class="theme-btn" type="button" role="radio" aria-checked="false" data-theme="system">
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="2" y="3" width="16" height="11" rx="2"/><path d="M7 18h6M10 14v4"/></svg>
-              System
+              <span data-i18n="System">System</span>
             </button>
           </div>
         </section>
         <section class="settings-section">
-          <div class="settings-section-label">Help &amp; tips</div>
+          <div class="settings-section-label" data-i18n="Language">Language</div>
+          <div class="theme-picker" id="langPicker" role="radiogroup" aria-label="Language">
+            <button class="theme-btn" type="button" role="radio" aria-checked="false" data-lang="en">
+              <span aria-hidden="true">🇬🇧</span>
+              <span data-i18n="English">English</span>
+            </button>
+            <button class="theme-btn" type="button" role="radio" aria-checked="false" data-lang="tr">
+              <span aria-hidden="true">🇹🇷</span>
+              <span data-i18n="Türkçe">Türkçe</span>
+            </button>
+          </div>
+        </section>
+        <section class="settings-section">
+          <div class="settings-section-label" data-i18n="Help &amp; tips">Help &amp; tips</div>
           <div class="settings-row">
             <div class="settings-integration-label">
-              <span class="settings-integration-title">Guided tour</span>
-              <span class="settings-integration-desc">A one-minute walkthrough of every part of the app. Press <kbd>?</kbd> anytime.</span>
+              <span class="settings-integration-title" data-i18n="Guided tour">Guided tour</span>
+              <span class="settings-integration-desc" data-i18n="A one-minute walkthrough of every part of the app. Press ? anytime.">A one-minute walkthrough of every part of the app. Press <kbd>?</kbd> anytime.</span>
             </div>
-            <button class="pill-btn" id="startTourBtn" type="button">Start tour</button>
+            <button class="pill-btn" id="startTourBtn" type="button" data-i18n="Start tour">Start tour</button>
           </div>
           <div class="settings-row settings-row-gap">
             <label class="settings-check" for="tipsToggle">
               <input type="checkbox" id="tipsToggle">
               <span class="settings-integration-label">
-                <span class="settings-integration-title">Show tips</span>
-                <span class="settings-integration-desc">Small hints that point at the next useful step the first time you reach a feature.</span>
+                <span class="settings-integration-title" data-i18n="Show tips">Show tips</span>
+                <span class="settings-integration-desc" data-i18n="Small hints that point at the next useful step the first time you reach a feature.">Small hints that point at the next useful step the first time you reach a feature.</span>
               </span>
             </label>
-            <button class="pill-btn" id="resetTipsBtn" type="button">Show all tips again</button>
+            <button class="pill-btn" id="resetTipsBtn" type="button" data-i18n="Show all tips again">Show all tips again</button>
           </div>
         </section>
         <section class="settings-section">
-          <div class="settings-section-label">Keyboard shortcuts</div>
+          <div class="settings-section-label" data-i18n="Keyboard shortcuts">Keyboard shortcuts</div>
           <dl class="shortcut-list">
-            <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
-            <div><dt><kbd>?</kbd></dt><dd>Guided tour</dd></div>
-            <div><dt><kbd>A</kbd></dt><dd>Add app</dd></div>
-            <div><dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>E</kbd></dt><dd>Export CSV</dd></div>
-            <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next review</dd></div>
-            <div><dt><kbd>Esc</kbd></dt><dd>Close dialog</dd></div>
+            <div><dt><kbd>/</kbd></dt><dd data-i18n="Focus search">Focus search</dd></div>
+            <div><dt><kbd>?</kbd></dt><dd data-i18n="Guided tour">Guided tour</dd></div>
+            <div><dt><kbd>A</kbd></dt><dd data-i18n="Add app">Add app</dd></div>
+            <div><dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> <kbd>E</kbd></dt><dd data-i18n="Export CSV">Export CSV</dd></div>
+            <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd data-i18n="Previous / next review">Previous / next review</dd></div>
+            <div><dt><kbd>Esc</kbd></dt><dd data-i18n="Close dialog">Close dialog</dd></div>
           </dl>
         </section>
         <section class="settings-section">
-          <div class="settings-section-label">Integrations</div>
+          <div class="settings-section-label" data-i18n="Integrations">Integrations</div>
           <div class="settings-integration-row is-disabled">
             <div class="settings-integration-label">
-              <span class="settings-integration-title">Meta Ads Library <span class="badge-soon">Coming soon</span></span>
-              <span class="settings-integration-desc">Enriches ASO difficulty scores with active ad counts. This integration is not available yet.</span>
+              <span class="settings-integration-title"><span data-i18n="Meta Ads Library">Meta Ads Library</span> <span class="badge-soon" data-i18n="Coming soon">Coming soon</span></span>
+              <span class="settings-integration-desc" data-i18n="Enriches ASO difficulty scores with active ad counts. This integration is not available yet.">Enriches ASO difficulty scores with active ad counts. This integration is not available yet.</span>
             </div>
             <div class="settings-token-row">
-              <input class="settings-token-input" id="metaTokenInput" type="password" placeholder="Not available yet" autocomplete="off" spellcheck="false" aria-label="Meta access token" disabled>
-              <button class="pill-btn" id="saveMetaTokenBtn" disabled>Save</button>
+              <input class="settings-token-input" id="metaTokenInput" type="password" placeholder="Not available yet" data-i18n-placeholder="Not available yet" autocomplete="off" spellcheck="false" aria-label="Meta access token" disabled>
+              <button class="pill-btn" id="saveMetaTokenBtn" disabled data-i18n="Save">Save</button>
             </div>
           </div>
         </section>
         <section class="settings-section">
-          <div class="settings-section-label">Data</div>
+          <div class="settings-section-label" data-i18n="Data">Data</div>
           <div class="settings-row">
             <div class="settings-integration-label">
-              <span class="settings-integration-title">Reset app data</span>
-              <span class="settings-integration-desc">Removes tracked apps, folders and preferences from this device. Keyword rank history is kept.</span>
+              <span class="settings-integration-title" data-i18n="Reset app data">Reset app data</span>
+              <span class="settings-integration-desc" data-i18n="Removes tracked apps, folders and preferences from this device. Keyword rank history is kept.">Removes tracked apps, folders and preferences from this device. Keyword rank history is kept.</span>
             </div>
-            <button class="pill-btn pill-btn-danger" id="resetDataBtn" type="button">Reset</button>
+            <button class="pill-btn pill-btn-danger" id="resetDataBtn" type="button" data-i18n="Reset">Reset</button>
           </div>
         </section>
         <section class="settings-section">
-          <div class="settings-section-label">About</div>
+          <div class="settings-section-label" data-i18n="About">About</div>
           <div class="about-block">
             <svg class="about-logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <polygon points="15,19 12,9 21,16" fill="var(--accent)"/>
@@ -389,7 +402,7 @@
             </svg>
             <div class="about-name">OwlASO</div>
             <div class="about-version" id="appVersion">Version —</div>
-            <div class="about-desc">Track app store keywords, analyze rankings, and monitor user reviews — all in one place. Built for indie developers and ASO professionals who want real insights without the noise.</div>
+            <div class="about-desc" data-i18n="Track app store keywords, analyze rankings, and monitor user reviews — all in one place. Built for indie developers and ASO professionals who want real insights without the noise.">Track app store keywords, analyze rankings, and monitor user reviews — all in one place. Built for indie developers and ASO professionals who want real insights without the noise.</div>
             <div class="about-meta">
               <span>Google Play &amp; App Store</span>
               <span class="about-sep" aria-hidden="true">·</span>

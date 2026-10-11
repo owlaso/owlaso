@@ -2,6 +2,7 @@
 // contextual hints ("coach marks") that point at the next useful action.
 // Everything is built with DOM APIs + textContent (no HTML strings), so help
 // text can never inject markup.
+import { t } from './i18n.js';
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -64,26 +65,26 @@ export function placeNear(box, rect, placement = 'bottom', gap = 10) {
 // Renders { title, body, steps[], legend[[label, text]], tip, keys[] } into `box`.
 function fillHelp(box, help) {
   box.replaceChildren();
-  if (help.title) box.append(el('div', 'tip-title', help.title));
-  if (help.body) box.append(el('div', 'tip-body', help.body));
+  if (help.title) box.append(el('div', 'tip-title', t(help.title)));
+  if (help.body) box.append(el('div', 'tip-body', t(help.body)));
   if (help.steps?.length) {
     const list = el('ol', 'tip-steps');
-    for (const step of help.steps) list.append(el('li', null, step));
+    for (const step of help.steps) list.append(el('li', null, t(step)));
     box.append(list);
   }
   if (help.legend?.length) {
     const legend = el('div', 'tip-legend');
     for (const [label, text, tone] of help.legend) {
       const row = el('div', 'tip-legend-row');
-      row.append(el('span', `tip-legend-key${tone ? ` ${tone}` : ''}`, label), el('span', null, text));
+      row.append(el('span', `tip-legend-key${tone ? ` ${tone}` : ''}`, t(label)), el('span', null, t(text)));
       legend.append(row);
     }
     box.append(legend);
   }
-  if (help.tip) box.append(el('div', 'tip-extra', help.tip));
+  if (help.tip) box.append(el('div', 'tip-extra', t(help.tip)));
   if (help.keys?.length) {
     const keys = el('div', 'tip-keys');
-    keys.append(el('span', null, 'Shortcut'));
+    keys.append(el('span', null, t('Shortcut')));
     for (const key of help.keys) keys.append(el('kbd', null, key));
     box.append(keys);
   }
@@ -205,17 +206,17 @@ export function createTour({ onStart, onEnd } = {}) {
     step.before?.();
     card.replaceChildren();
     const head = el('div', 'tour-head');
-    head.append(el('span', 'tour-count', `${index + 1} of ${steps.length}`));
-    const skip = el('button', 'tour-skip', 'Skip tour');
+    head.append(el('span', 'tour-count', t('{index} of {total}', { index: index + 1, total: steps.length })));
+    const skip = el('button', 'tour-skip', t('Skip tour'));
     skip.type = 'button';
     skip.addEventListener('click', () => end(false));
     head.append(skip);
-    const title = el('div', 'tour-title', step.title);
+    const title = el('div', 'tour-title', t(step.title));
     title.id = 'tourTitle';
-    card.append(head, title, el('div', 'tour-body', step.body));
+    card.append(head, title, el('div', 'tour-body', t(step.body)));
     if (step.bullets?.length) {
       const list = el('ul', 'tour-bullets');
-      for (const b of step.bullets) list.append(el('li', null, b));
+      for (const b of step.bullets) list.append(el('li', null, t(b)));
       card.append(list);
     }
     const foot = el('div', 'tour-foot');
@@ -223,12 +224,12 @@ export function createTour({ onStart, onEnd } = {}) {
     steps.forEach((_, i) => dots.append(el('span', i === index ? 'active' : i < index ? 'done' : '')));
     const nav = el('div', 'tour-nav');
     if (index > 0) {
-      const back = el('button', 'pill-btn', 'Back');
+      const back = el('button', 'pill-btn', t('Back'));
       back.type = 'button';
       back.addEventListener('click', () => go(-1));
       nav.append(back);
     }
-    const next = el('button', 'pill-btn pill-primary', index === steps.length - 1 ? 'Finish' : 'Next');
+    const next = el('button', 'pill-btn pill-primary', index === steps.length - 1 ? t('Finish') : t('Next'));
     next.type = 'button';
     next.addEventListener('click', () => (index === steps.length - 1 ? end(true) : go(1)));
     nav.append(next);
@@ -347,22 +348,22 @@ export function createHints({ read, write, canShow = () => true, onDismiss } = {
     const bubble = el('div', 'hint-bubble');
     bubble.setAttribute('role', 'status');
     const header = el('div', 'hint-head');
-    header.append(el('span', 'hint-icon', '💡'), el('span', 'hint-title', title));
+    header.append(el('span', 'hint-icon', '💡'), el('span', 'hint-title', t(title)));
     const actions = el('div', 'hint-actions');
     if (action) {
-      const doIt = el('button', 'pill-btn pill-primary', action.label);
+      const doIt = el('button', 'pill-btn pill-primary', t(action.label));
       doIt.type = 'button';
       doIt.addEventListener('click', () => { dismiss({ silent: true }); action.run(); });
       actions.append(doIt);
     }
-    const ok = el('button', 'pill-btn', 'Got it');
+    const ok = el('button', 'pill-btn', t('Got it'));
     ok.type = 'button';
     ok.addEventListener('click', () => dismiss());
-    const off = el('button', 'hint-off', 'Turn off tips');
+    const off = el('button', 'hint-off', t('Turn off tips'));
     off.type = 'button';
     off.addEventListener('click', () => { seen.add('*'); persist(); dismiss({ silent: true }); });
     actions.append(ok);
-    bubble.append(header, el('div', 'hint-body', body), actions, off);
+    bubble.append(header, el('div', 'hint-body', t(body)), actions, off);
     document.body.append(bubble);
     // Acting on the highlighted element counts as "got it".
     const onTargetClick = () => dismiss({ silent: true });
