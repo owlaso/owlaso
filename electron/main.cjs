@@ -14,6 +14,10 @@ process.env.RANK_HISTORY_DIR ||= path.join(app.getPath('userData'), 'rank-histor
 // Follow the OS theme; the renderer applies the user's explicit choice on top.
 nativeTheme.themeSource = 'system';
 
+// Explicit AppUserModelID: running shortcut-less from dist\win-unpacked, Windows
+// derives a path-based id whose cached taskbar icon can stay stale across rebrands.
+app.setAppUserModelId('com.owlaso.app');
+
 // Register a privileged custom scheme so the renderer can use fetch() against it.
 protocol.registerSchemesAsPrivileged([
   {
@@ -112,7 +116,17 @@ function registerProtocol() {
     const filePath = resolvePublicPath(url.pathname);
     if (!filePath) return new Response('Forbidden', { status: 403 });
     try {
-      if (fs.statSync(filePath).isFile()) return net.fetch(pathToFileURL(filePath).toString());
+      if (fs.statSync(filePath).isFile()) {
+        // The page favicon doubles as the Windows taskbar icon (Electron updates
+        // the window icon from it), so it must never be served from a cache —
+        // a stale copy would keep the pre-rebrand icon alive indefinitely.
+        if (url.pathname === '/favicon.svg') {
+          return new Response(fs.readFileSync(filePath), {
+            headers: { 'content-type': 'image/svg+xml', 'cache-control': 'no-store' },
+          });
+        }
+        return net.fetch(pathToFileURL(filePath).toString());
+      }
     } catch { /* not a file */ }
     if (path.extname(url.pathname)) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(path.join(publicDir, 'index.html')).toString());
@@ -137,6 +151,15 @@ function hardenContents(contents) {
 }
 
 // ── Window ──────────────────────────────────────────────────────
+function windowIconPath() {
+  if (process.platform === 'darwin') return undefined;
+  // Packaged: electron-builder copies build/icon.ico next to app.asar.
+  // Dev: build/ sits one level above electron/.
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.ico')
+    : path.join(__dirname, '..', 'build', 'icon.ico');
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1480,
@@ -144,8 +167,11 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     title: 'OwlASO',
+    // Explicit window icon: without it Windows resolves the taskbar icon via
+    // its own stale fallback path and can show an old design after a rebrand.
+    icon: windowIconPath(),
     // Match the theme so dark-mode users don't get a white flash on launch.
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#2c2c2e' : '#f5f5f7',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#141414' : '#f5f5f5',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

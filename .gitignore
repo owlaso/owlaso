@@ -5,3 +5,6 @@ node_modules
 dist/
 data/
 .claude/
+.demo-data/
+owlaso-demo-video/node_modules/
+owlaso-demo-video/out/

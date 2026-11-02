@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="color-scheme" content="light dark">
   <title>OwlASO</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
   <script src="/theme-boot.js"></script>
 </head>
@@ -257,21 +257,15 @@
   <div class="onboarding-overlay hidden" id="onboardingOverlay">
     <div class="onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
       <svg class="onboarding-logo" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-          <linearGradient id="owlGrad" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#818cf8"/>
-            <stop offset="100%" stop-color="#6366f1"/>
-          </linearGradient>
-        </defs>
-        <rect width="80" height="80" rx="18" fill="url(#owlGrad)"/>
-        <polygon points="25,33 21,20 32,30" fill="white" opacity="0.92"/>
-        <polygon points="55,33 59,20 48,30" fill="white" opacity="0.92"/>
-        <circle cx="40" cy="46" r="22" fill="none" stroke="white" stroke-width="2.5" opacity="0.88"/>
-        <circle cx="29" cy="43" r="6.5" fill="none" stroke="white" stroke-width="2"/>
-        <circle cx="51" cy="43" r="6.5" fill="none" stroke="white" stroke-width="2"/>
-        <circle cx="29" cy="43" r="3" fill="white"/>
-        <circle cx="51" cy="43" r="3" fill="white"/>
-        <polygon points="37.5,52 40,56.5 42.5,52" fill="white" opacity="0.85"/>
+        <rect width="80" height="80" rx="18" fill="currentColor"/>
+        <polygon points="25,33 21,20 32,30" fill="var(--surface)" opacity="0.92"/>
+        <polygon points="55,33 59,20 48,30" fill="var(--surface)" opacity="0.92"/>
+        <circle cx="40" cy="46" r="22" fill="none" stroke="var(--surface)" stroke-width="2.5" opacity="0.88"/>
+        <circle cx="29" cy="43" r="6.5" fill="none" stroke="var(--surface)" stroke-width="2"/>
+        <circle cx="51" cy="43" r="6.5" fill="none" stroke="var(--surface)" stroke-width="2"/>
+        <circle cx="29" cy="43" r="3" fill="var(--surface)"/>
+        <circle cx="51" cy="43" r="3" fill="var(--surface)"/>
+        <polygon points="37.5,52 40,56.5 42.5,52" fill="var(--surface)" opacity="0.85"/>
       </svg>
       <h2 class="onboarding-title" id="onboardingTitle" data-i18n="Welcome to OwlASO">Welcome to OwlASO</h2>
       <div class="onboarding-desc" data-i18n="Research App Store &amp; Google Play keywords and monitor what users say — in one place.">Research App Store &amp; Google Play keywords and monitor what users say — in one place.</div>

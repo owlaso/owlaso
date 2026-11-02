@@ -13,31 +13,15 @@ const HTML = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <body><canvas id="c" width="1024" height="1024"></canvas>
 <script>
 const svg = \`<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#818cf8"/>
-      <stop offset="100%" stop-color="#4338ca"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="512" cy="380" r="580" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="white" stop-opacity="0.10"/>
-      <stop offset="100%" stop-color="black" stop-opacity="0.14"/>
-    </radialGradient>
-  </defs>
-  <rect width="1024" height="1024" fill="url(#bg)"/>
-  <rect width="1024" height="1024" fill="url(#glow)"/>
-  <polygon points="348,272 296,118 458,248" fill="white" opacity="0.94"/>
-  <polygon points="676,272 728,118 566,248" fill="white" opacity="0.94"/>
-  <circle cx="512" cy="570" r="308" fill="white" opacity="0.07"/>
-  <circle cx="512" cy="570" r="308" fill="none" stroke="white" stroke-width="22" opacity="0.86"/>
-  <circle cx="400" cy="518" r="102" fill="white" opacity="0.16"/>
-  <circle cx="400" cy="518" r="102" fill="none" stroke="white" stroke-width="18"/>
-  <circle cx="400" cy="518" r="46" fill="white"/>
-  <circle cx="418" cy="500" r="14" fill="white" opacity="0.5"/>
-  <circle cx="624" cy="518" r="102" fill="white" opacity="0.16"/>
-  <circle cx="624" cy="518" r="102" fill="none" stroke="white" stroke-width="18"/>
-  <circle cx="624" cy="518" r="46" fill="white"/>
-  <circle cx="642" cy="500" r="14" fill="white" opacity="0.5"/>
-  <polygon points="476,624 512,680 548,624" fill="white" opacity="0.88"/>
+  <rect width="1024" height="1024" rx="240" fill="#f5f5f5"/>
+  <circle cx="512" cy="480" r="304" fill="none" stroke="#141414" stroke-width="57.6"/>
+  <circle cx="408" cy="456" r="80" fill="#141414"/>
+  <circle cx="616" cy="456" r="80" fill="#141414"/>
+  <circle cx="432" cy="432" r="27.2" fill="#f5f5f5"/>
+  <circle cx="640" cy="432" r="27.2" fill="#f5f5f5"/>
+  <path d="M457.6 584 H566.4 L512 680 Z" fill="#141414"/>
+  <path d="M264 328 L232 168 L376 248" fill="none" stroke="#141414" stroke-width="54.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M760 328 L792 168 L648 248" fill="none" stroke="#141414" stroke-width="54.4" stroke-linejoin="round" stroke-linecap="round"/>
 </svg>\`;
 const blob = new Blob([svg], {type:'image/svg+xml'});
 const url = URL.createObjectURL(blob);

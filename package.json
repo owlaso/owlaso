@@ -28,7 +28,8 @@
   },
   "devDependencies": {
     "electron": "^44.4.5",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "playwright": "^1.64.1"
   },
   "build": {
     "appId": "com.owlaso.app",
@@ -44,6 +45,9 @@
       "src/**/*",
       "public/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      { "from": "build/icon.ico", "to": "icon.ico" }
     ],
     "mac": {
       "icon": "build/icon.png",

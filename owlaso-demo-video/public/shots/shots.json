@@ -1,0 +1,70 @@
+[
+  {
+    "file": "01-onboarding.png",
+    "caption": "First-run onboarding card"
+  },
+  {
+    "file": "02-empty.png",
+    "caption": "Keywords view — empty state with tracked apps"
+  },
+  {
+    "file": "03-keywords.png",
+    "caption": "Keyword analysis — popularity & difficulty at a glance"
+  },
+  {
+    "file": "04-tooltip.png",
+    "caption": "Rich tooltip — scoped help everywhere"
+  },
+  {
+    "file": "05-keyword-detail.png",
+    "caption": "Keyword detail — trend chart, rankings & competitor keywords"
+  },
+  {
+    "file": "06-app-detail.png",
+    "caption": "App details — merged across both stores (live store data)"
+  },
+  {
+    "file": "07-add-app.png",
+    "caption": "Add app — search both stores at once"
+  },
+  {
+    "file": "08-reviews.png",
+    "caption": "Reviews — both stores, filtered and compared"
+  },
+  {
+    "file": "09-review-detail.png",
+    "caption": "Review detail — full text, reply and store metadata"
+  },
+  {
+    "file": "10-full-data.png",
+    "caption": "Full data explorer — every language, terms & rating splits"
+  },
+  {
+    "file": "11-settings.png",
+    "caption": "Settings — themes, language, tips and shortcuts"
+  },
+  {
+    "file": "12-settings-tr.png",
+    "caption": "Language switch — full English/Türkçe UI"
+  },
+  {
+    "file": "20-dark-keywords.png",
+    "caption": "Dark theme — keyword analysis"
+  },
+  {
+    "file": "21-dark-detail.png",
+    "caption": "Dark theme — keyword detail"
+  },
+  {
+    "file": "22-dark-reviews.png",
+    "caption": "Dark theme — reviews explorer"
+  },
+  {
+    "file": "23-dark-full-data.png",
+    "caption": "Dark theme — full data explorer"
+  },
+  {
+    "file": "24-dark-settings.png",
+    "caption": "Dark theme — settings"
+  }
+]
