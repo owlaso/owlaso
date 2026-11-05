@@ -1,125 +1,345 @@
-# OwlASO ASO Keyword Tracking & App Store Review Analytics
+<div align="center">
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<a href="https://github.com/owlaso/owlaso"><img src="public/banner.png" alt="OwlASO — Discover what users search for and grow your app 10x faster" width="100%" /></a>
 
-**OwlASO** is a desktop (and local web) app for ASO keyword research and app store review monitoring across **Google Play** and the **App Store**.
+<br />
+<br />
 
-- **Keywords** — popularity, difficulty and opportunity scores, the apps ranking for a keyword, similar keywords, and the keywords competitors also rank for
-- **Rank tracking** — the position of the app selected in the sidebar for every keyword, per store, with a daily history (trend arrows and charts)
-- **Reviews** — both stores in one table (store column per review), instant keyword/star filtering with highlighted matches, compare up to 5 apps (Ctrl/⌘-click)
-- **Full data explorer** — every reachable review across stores and languages, streamed with live progress; click-to-filter rating / store / language facets, search, sort, "what users complain about" vs "what users love" terms, per-source status and a "Go deeper" option
-- **Export** — CSV (UTF-8 with BOM, formula-injection safe) for keywords, reviews and full data; JSON for full data
-- **Desktop** — Windows (NSIS), macOS (DMG) and Linux (AppImage) installers via Electron; light/dark/system theme
+**Free, open-source ASO keyword research.** Discover what users are searching for, analyze competitor strategies, and grow your app 10x faster — across both app stores.
 
-> Landing page: <https://owlaso.github.io> — Source: <https://github.com/owlaso/owlaso>
+<b><a href="https://github.com/owlaso/owlaso">App Repository</a></b> ·
+<a href="https://github.com/owlaso/owlaso/issues/new">Report a bug</a> ·
+<a href="https://github.com/owlaso/owlaso/issues">Request a feature</a> ·
+<a href="https://github.com/owlaso/owlaso/releases">Releases</a> ·
+<a href="https://owlaso.github.io/docs/">Documentation</a>
 
-## How the numbers are made
+<br />
 
-| Metric | How OwlASO computes it |
+[![Stars](https://img.shields.io/github/stars/owlaso/owlaso?style=for-the-badge&logo=github&color=272727&labelColor=18181b)](https://github.com/owlaso/owlaso/stargazers)
+[![Forks](https://img.shields.io/github/forks/owlaso/owlaso?style=for-the-badge&logo=github&color=272727&labelColor=18181b)](https://github.com/owlaso/owlaso/network/members)
+[![Watchers](https://img.shields.io/github/watchers/owlaso/owlaso?style=for-the-badge&logo=github&color=272727&labelColor=18181b)](https://github.com/owlaso/owlaso/watchers)
+[![Issues](https://img.shields.io/github/issues/owlaso/owlaso?style=for-the-badge&color=272727&labelColor=18181b)](https://github.com/owlaso/owlaso/issues)
+[![License](https://img.shields.io/github/license/owlaso/owlaso?style=for-the-badge&color=272727&labelColor=18181b)](LICENSE)
+
+[![Last commit](https://img.shields.io/github/last-commit/owlaso/owlaso?style=flat-square&color=272727&labelColor=18181b)](https://github.com/owlaso/owlaso/commits)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/owlaso/owlaso?style=flat-square&color=272727&labelColor=18181b)](https://github.com/owlaso/owlaso/pulse)
+[![Repo size](https://img.shields.io/github/repo-size/owlaso/owlaso?style=flat-square&color=272727&labelColor=18181b)](https://github.com/owlaso/owlaso)
+[![Top language](https://img.shields.io/github/languages/top/owlaso/owlaso?style=flat-square&color=272727&labelColor=18181b)](https://github.com/owlaso/owlaso)
+[![Contributors](https://img.shields.io/github/contributors/owlaso/owlaso?style=flat-square&color=272727&labelColor=18181b)](https://github.com/owlaso/owlaso/graphs/contributors)
+
+![Electron 32](https://img.shields.io/badge/Electron-32-272727?style=flat-square&logo=electron&logoColor=47848F)
+![React 19](https://img.shields.io/badge/React-19-272727?style=flat-square&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-272727?style=flat-square&logo=typescript&logoColor=3178C6)
+![Tailwind CSS 4](https://img.shields.io/badge/Tailwind-4-272727?style=flat-square&logo=tailwindcss&logoColor=06B6D4)
+![SQLite](https://img.shields.io/badge/SQLite-node:sqlite-272727?style=flat-square&logo=sqlite&logoColor=white)
+![Node 22+](https://img.shields.io/badge/Node-22+-272727?style=flat-square&logo=nodedotjs&logoColor=5FA04E)
+![PanelUI](https://img.shields.io/badge/UI-PanelUI-272727?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMiIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIi8+PHBhdGggZD0iTTEyIDJ2MjBNNyAxMmgxMCIvPjwvc3ZnPg==)
+![Claude](https://img.shields.io/badge/AI-Claude%20%C2%B7%20OpenCode-272727?style=flat-square&logo=anthropic&logoColor=white)
+
+[Features](#-features) ·
+[How it works](#-how-it-works) ·
+[Quick start](#-quick-start) ·
+[Installation](#-installation) ·
+[Privacy](#-private-by-design) ·
+[FAQ](#-faq)
+
+</div>
+
+---
+
+## 🎯 What is this?
+
+Most ASO tools rank keywords by raw popularity, which mostly tells you what everyone already targets. **OwlASO ranks keywords by opportunity** — the intersection of demand you can actually compete for. A keyword with 80 popularity and 30 difficulty is a signal; 80 popularity and 90 difficulty is noise.
+
+It's built for one person: an indie developer who builds apps and wants to grow on the App Store and Google Play without paying per seat or sending data to a SaaS. It runs on your machine, stores everything locally, and talks straight to the stores' public endpoints.
+
+> [!NOTE]
+> OwlASO is a local-first desktop app, not a SaaS. There are no accounts on someone else's server, no telemetry and no shared database. Your tracked apps, folders, keyword history and exports stay on your disk.
+
+## ✨ Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🔍 Keyword Research
+- **Popularity, Difficulty, Opportunity** (0–100) computed from public signals
+- **5 similar keywords** scored side by side in one query
+- **Competitor keywords** — what the top apps also rank for
+- **Your app's position** in the top 50 per store, daily change
+
+</td>
+<td width="50%" valign="top">
+
+### 📊 Rank Tracking
+- **Daily snapshots** with trend arrows & 30-day charts
+- **180 days of history** kept locally
+- **Track any app** — yours or competitors
+- **Per-store, per-country, per-language**
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🌍 All Countries at Once
+- **20 storefronts** in one table, sorted by opportunity
+- **Top Market badges** on the winners
+- **Reviews from every App Store** storefront
+
+</td>
+<td valign="top">
+
+### 💬 Reviews from Both Stores
+- **Google Play + App Store** in one table with store column
+- **Instant word & star filters**, highlighted matches
+- **Compare up to 5 apps** with Ctrl/⌘-click
+- **Step through reviews** with ← / → keys
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🧪 Full-Data Explorer
+- **Every reachable review** across stores & languages
+- **Live progress** for each source
+- **Filter by rating, store, language**; search & sort
+- **What users complain about vs. love**
+
+</td>
+<td valign="top">
+
+### 📤 Export Anything
+- **CSV** for keywords, reviews & full data
+- **JSON** for full-data results
+- **Excel-ready UTF-8**, formula-injection safe
+- **Press Ctrl/⌘+E** to export exactly what you're viewing
+
+</td>
+</tr>
+</table>
+
+### Also included
+
+| Feature | Description |
 |---|---|
-| Popularity (0–100) | Proxy from the ranking apps: breadth of results, rating volume (log scale), average rating, share of apps with ads (`src/aso.js`) |
-| Difficulty (0–100) | Share of "authority" apps (≥50K ratings), apps with ads, strong ratings (≥4★) and result breadth |
-| Opportunity | `popularity × (100 − difficulty) / 100` |
-| Position | Rank of your selected app in the store's search results for the keyword (top 50 per store) |
-| History | One snapshot per keyword × store × country × language per day (kept for 180 days) |
-| Competitor keywords | Related searches are probed and the top apps that actually appear in their results are recorded |
+| **Guided tour & help tooltips** | One-minute walkthrough + press `?` anytime |
+| **Folders & drag-and-drop** | Organize apps & keywords your way |
+| **Light / dark / system theme** | Matches OS until you pick |
+| **Keyboard shortcuts** | Power-user workflow without the mouse |
+| **Undo for deletes** | Accident-proof your data |
+| **Screen-reader labels** | Full accessibility support |
 
-These are free, public-data estimates — not Apple Search Ads' first-party popularity data.
+## 🧠 How it works
 
-## Reality check
+```mermaid
+flowchart LR
+    A["You add apps<br/>by name / package / App Store ID"] --> B["App talks straight to<br/>iTunes Search API &<br/>google-play-scraper"]
+    B --> C[("Local SQLite<br/>data.sqlite")]
+    C --> D["Score keyword<br/>Popularity · Difficulty · Opportunity"]
+    D --> E["Similar & competitor<br/>keywords + your position"]
+    E --> F["Reviews: both stores<br/>one table, instant filter"]
+    F --> G["Full data explorer<br/>all languages, all stores"]
+    G --> H["Export CSV / JSON<br/>Ctrl+E anytime"]
+```
 
-Apple data comes from the public iTunes Search API and customer-review RSS feed (capped by Apple at ~500 reviews per storefront). Google Play has no official public reviews API, so OwlASO uses [`google-play-scraper`](https://github.com/facundoolano/google-play-scraper); Google layout changes can break it, and Google may throttle requests. OwlASO caches results, coalesces duplicate requests, retries with backoff (honouring `Retry-After`) and only falls back to HTML scraping when the scraper fails — but please do not hammer the stores.
+1. **Add apps.** Click `+` (or press `A`) and search by name, package (`com.spotify.music`) or App Store ID. Apps on both stores merge into one entry.
+2. **Analyze keywords.** Type a keyword and press `Enter`. You get scores for it and 5 similar keywords, plus any app's position on each store.
+3. **Track ranks.** Daily snapshots fill in trend arrows and 30-day charts automatically. History kept locally for 180 days.
+4. **Read reviews.** Switch to **Reviews**, filter by words and stars, compare apps, then press `Ctrl`/`⌘`+`E` to export.
+5. **Go deeper.** **All Countries** runs one keyword across 20 storefronts. **Full Data** reads every reachable review across stores and languages.
 
-## Requirements
+## 🚀 Quick start
 
-- Node.js 22.12+
-- Internet access from the machine running the app
+### Requirements
 
-## Install & run
+- **Node.js 22.12+** (for running from source)
+- **Windows** (prebuilt installer), **macOS** or **Linux** (from source)
+- **git** (for cloning & updates)
+
+### Run from source (any OS)
 
 ```bash
+git clone https://github.com/owlaso/owlaso.git
+cd owlaso
 npm install
-npm start            # web mode → http://localhost:3000
-npm run dev          # web mode with auto-restart
-npm run electron     # desktop mode
+npm run electron   # desktop app
 ```
 
-## Build installers
+Prefer the browser? Run `npm start` and open **http://localhost:3000**. Want an installer? `npm run dist:mac` builds a DMG, `npm run dist:linux` an AppImage.
 
-```bash
-npm run dist:win      # Windows NSIS installer
-npm run dist:mac      # macOS DMG (arm64 + x64)
-npm run dist:linux    # Linux AppImage
-```
+### Windows installer (recommended)
 
-Outputs land in `dist/`.
+1. Open the latest release on GitHub
+2. Download `OwlASO.Setup.<version>.exe`
+3. Run it — you get desktop & Start-menu shortcuts
 
-## Usage
+> **SmartScreen warning?** If Windows shows "Windows protected your PC", choose *More info → Run anyway* — or build it yourself from source.
 
-1. **Add apps** — click **+** in the sidebar and search by name, package name (`com.spotify.music`) or App Store id (`324684580`). Apps found on both stores are merged into one entry.
-2. **Keywords** — type a keyword and press Enter. The analyzed keyword and 5 similar ones are scored; the **Position** column shows where the selected app ranks on each store. Click a row for details, trend charts and competitor keywords.
-3. **Reviews** — select an app. Filter by keyword (all words must match) and star range instantly; change store, country, language or the fetch size to load new data. **Load more** raises the fetch size. **Full data** pulls everything in every language into an explorer: click a star bar, store or language to filter, search, sort (newest, lowest rating, most helpful…), hide very short reviews, and read the distinctive complaint/praise terms. When Google Play has more than was read, **Go deeper** raises the per-language limit (1,000 → 2,500 → 5,000). Export CSV exports exactly the filtered list.
-4. **All countries** — pick *All countries* in the country picker.
-   - *Keywords*: the keyword is analyzed in all 20 storefronts, one row per country, sorted by opportunity (best markets first). Click a row → **Open in …** for that country's history and competitor keywords.
-   - *Reviews / Full data*: reads every App Store storefront (Apple keeps reviews per country) plus every Google Play language (Google keeps reviews per language, not per country). Each review shows where it came from.
-5. **Export** — `Ctrl/⌘+E` exports what you are looking at as CSV.
+Rather not install? The release also ships a portable `.zip` you can unpack and run.
 
-Shortcuts: `/` focus search · `A` add app · `?` guided tour · `←/→` previous/next review · `Esc` close dialog.
+## 📦 Installation
 
-### Built-in guidance
-
-- **Guided tour** — an 11-step walkthrough that highlights each area of the app. Offered on first launch; replay with `?`, the **?** button in the sidebar, or Settings.
-- **Help tooltips** — hover (or keyboard-focus) any control or column title for what it does, how to read it (e.g. what counts as a high difficulty) and its shortcut.
-- **Contextual tips** — the first time you reach a feature, a small tip points at the next useful step (select an app to see its rank, filter reviews, compare apps, Full data, export). Each tip shows once; turn them off or reset them in Settings.
-
-## Configuration (environment variables)
-
-| Variable | Default | Purpose |
+| Platform | Method | Notes |
 |---|---|---|
-| `PORT` | `3000` | Web server port |
-| `HOST` | `127.0.0.1` | Bind address. Exposing on a LAN also needs `ALLOWED_HOSTS` if you use a hostname |
-| `ALLOWED_HOSTS` | — | Comma-separated extra hostnames accepted in the `Host` header |
-| `RANK_HISTORY_DIR` | `data/rank-history` (desktop: user data folder) | Where keyword history is stored |
-| `DISABLE_RANK_HISTORY` | — | `1` disables history |
-| `SEARCH_CACHE_TTL_MS` / `REVIEW_CACHE_TTL_MS` / `DETAILS_CACHE_TTL_MS` | 5 / 5 / 15 min | Cache lifetimes |
-| `CACHE_MAX_WEIGHT` | `100000` | Cache size bound (≈ number of cached rows) |
-| `DISABLE_CACHE` | — | `1` disables caching |
-| `MOCK_STORE_DATA` | — | `1` serves built-in demo data (no network) |
-| `FB_ADLIB_ACCESS_TOKEN` | — | Optional Meta Ad Library token for ad signals |
+| **Windows** | Installer (`.exe`) | x64, auto-updates via GitHub Releases |
+| **Windows** | Portable (`.zip`) | Unpack & run, no admin needed |
+| **macOS** | `npm run dist:mac` | Builds a signed DMG |
+| **Linux** | `npm run dist:linux` | Builds an AppImage |
+| **Any OS** | `npm run electron` | Run from source (Node 22.12+) |
 
-## Validation
+<details>
+<summary><b>Build from source</b></summary>
 
 ```bash
-npm test              # unit + integration tests (no network)
-npm run smoke:mock    # boots the server with demo data and hits every route
-npm run smoke:live    # real Apple/Google calls — needs internet, can fail on throttling
+git clone https://github.com/owlaso/owlaso.git
+cd owlaso
+npm install
+npm run electron        # dev mode with hot reload
+npm run dist:mac        # macOS DMG
+npm run dist:linux      # Linux AppImage
+npm run dist:win        # Windows NSIS installer
+npm start               # web mode on http://localhost:3000
 ```
 
-## API
+Requires **Node.js 22.12+** and **git**. See [docs/#install](https://owlaso.github.io/docs/#install) for full guide covering requirements, web mode and building installers.
 
-All endpoints are `GET` and return JSON unless noted. Invalid input returns `400`.
+</details>
 
-| Endpoint | Parameters |
+## 🔐 Private by Design
+
+<div align="center">
+
+| | | |
+|:---:|:---:|:---:|
+| <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> | <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> | <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> |
+| **No telemetry** | **127.0.0.1 only** | **On-device** |
+| Tracked apps, folders and keyword history stored on your device. No analytics, no OwlASO server. | Web mode binds to `127.0.0.1`, rejects foreign `Host` headers and cross-site requests (DNS-rebinding & CSRF protection). | Sandboxed renderer, context isolation, strict CSP, `http(s)`-only external links, every permission request denied. |
+
+</div>
+
+**Safe exports** — Review text starting with `=`, `+`, `-` or `@` is neutralised so a review can't run as a spreadsheet formula.
+
+## 🗺️ App Pages
+
+| Page | What it does |
 |---|---|
-| `/api/health` | — (returns `version`, `mock`) |
-| `/api/search` | `q`, `platform=all\|google\|apple`, `country`, `lang`, `limit` |
-| `/api/asosearch` | `q`, `store=both\|google\|apple`, `country` (one storefront), `lang`, `lite=1` (skip competitor probes + history), `track=1` (keep history for a lite run) |
-| `/api/asosearch/history` | `q`, `store`, `country`, `lang` → daily snapshots incl. per-store rankings |
-| `/api/app-details` | `appId`, `platform`, `appId2`, `store=both`, `country`, `lang` |
-| `/api/reviews` | `appId`, `platform=google\|apple\|both`, `appPlatform`, `appId2`, `title`, `developer`, `country` (`all` = every storefront), `lang` (`all` = multi-language), `max`, `sort`, filters: `stars`, `minRating`, `maxRating`, `allKeywords`, `anyKeyword`, `keyword`, `dateFrom`, `dateTo`, `version`, `minLength`, `replyOnly` |
-| `/api/reviews.csv` | Same as `/api/reviews`; CSV download |
-| `/api/reviews.full.stream` | `appId`, `platform`, `appPlatform`, `appId2`, `title`, `country` → NDJSON: `group` lines, then `done` |
-| `/api/reviews.full` | Same, as one JSON document |
+| **Keywords** | Score a keyword + 5 similar, see positions, competitor keywords |
+| **Keyword details** | All numbers, trend charts, best rank over time, top apps' keywords |
+| **All Countries** | One keyword across 20 storefronts, sorted by opportunity |
+| **Reviews** | Both stores in one table, instant word/star filter, compare apps |
+| **Full Data** | Every reachable review, rating/store/language facets, search & sort |
+| **Guided Tour** | One-minute walkthrough, press `?` anytime to replay |
 
-`appPlatform` tells the server which store `appId` belongs to (inferred from the id format when omitted). `appId2` pins the listing on the other store; without it the counterpart is looked up by `title` (+ `developer`) and only accepted on a confident match.
+## 📏 Transparent Scores
 
-## Patch notes
+Every score is computed from public store data with a formula you can read — and check in the source.
 
-### 1.6.0
+| Score | Range | What it means | Formula |
+|---|---|---|---|
+| **Popularity** | 0–100 | How much demand a keyword shows, judged by the apps that rank for it | Rating volume (log) + breadth + avg stars + ad share |
+| **Difficulty** | 0–100 | How hard it is to break into the results | Authority apps (≥50K) + ad share + breadth + ≥4★ share |
+| **Opportunity** | 0–100 | High demand you can realistically compete for | `popularity × (100 − difficulty) / 100` |
 
-- **Security**: fixed path traversal in rank-history writes (`store` parameter), a crash on malformed `Host` headers, CSRF/DNS-rebinding exposure of the local API, CSV formula injection and a broken CSV quote in full-data exports; added CSP and security headers, Electron sandboxing, navigation/permission lockdown and an `http(s)`-only external-link allowlist; upgraded Electron 31 → 44 and electron-builder 24 → 26 (0 known vulnerabilities).
-- **Correctness**: "All stores" now really fetches both stores (the app's store and known counterpart are sent to the server); the Add-app modal searches both stores; ranks come from real search order (they used to follow request completion order); Position is your app's rank instead of an average; history is keyed by country and language, one snapshot per day, and no longer collides for non-Latin keywords; counterpart matching no longer falls back to unrelated apps; unrated listings no longer drag ratings down; duplicate reviews are removed by store review id; App Store reviews are fetched once per storefront; "Show more", Escape handling and stale-response races fixed.
-- **Performance**: shared, size-bounded cache with request coalescing; far fewer store requests per keyword analysis (App Store search already carries listing details, similar-keyword rows skip competitor probes, HTML fallback only when needed); review filtering is instant and local.
-- **Guidance**: guided tour, rich help tooltips on every control and column, one-time contextual tips.
-- **UX**: Keywords/Reviews tabs with a contextual filter bar, store column and match highlighting in reviews, multi-app comparison, review navigation with ←/→, toasts with undo, keyboard support and screen-reader labels throughout, trend charts, better empty/error states with retry, dark-mode flash fix, native Edit menu on macOS.
-- One shared API router for the web server and the desktop app (the desktop app was missing the history route).
+> **Example** — "habit tracker": Popularity 78, Difficulty 64, Opportunity 28.  
+> <details><summary>See the weights</summary>
+> 
+> **Popularity**: 40% rating volume, 22% breadth, 20% avg stars, 18% ad share  
+> **Difficulty**: 40% authority apps, 25% ad share, 20% breadth, 15% ≥4★ apps
+> 
+> </details>
+
+## 💡 Try the logic
+
+A tiny preview of the scoring model — popularity, difficulty and the opportunity they add up to. The real app runs this across both stores and 20 storefronts.
+
+```bash
+# In the app: press the Command Dock (⌘K / Ctrl+K), type "habit tracker"
+# P 78 · D 64 · O 28
+```
+
+## ❓ FAQ
+
+<details>
+<summary><b>Is OwlASO really free?</b></summary>
+
+Yes. It's open source under the MIT license — no paid tier, no seats, no sign-up.
+
+</details>
+
+<details>
+<summary><b>Where does the data come from?</b></summary>
+
+**App Store:** Apple's public iTunes Search API and customer-review feed.  
+**Google Play:** there is no official public reviews API, so OwlASO uses the open-source `google-play-scraper`, with an HTML fallback.
+
+Requests go straight from your computer to the stores. Results are cached for 5–15 minutes to keep traffic low.
+
+</details>
+
+<details>
+<summary><b>How accurate are popularity and difficulty?</b></summary>
+
+They're estimates built from public signals (rating volume, star ratings, ads, result breadth), not Apple Search Ads' first-party data. They work best for comparing keywords against each other. [See the formulas](https://owlaso.github.io/docs/#metrics).
+
+</details>
+
+<details>
+<summary><b>Why do I only get about 500 App Store reviews?</b></summary>
+
+Apple's public review feed stops at 10 pages of 50 reviews per storefront (country). Pick **All Countries** to read every storefront at once. Google Play allows far more: up to 5,000 per fetch, and **Full Data** reads 1,000 per language — **Go Deeper** raises that to 5,000.
+
+</details>
+
+<details>
+<summary><b>Is there a Mac or Linux version?</b></summary>
+
+OwlASO runs on macOS and Linux from source today (Node.js 22.12+). The prebuilt installer is Windows-only for now; `npm run dist:mac` and `npm run dist:linux` build your own DMG or AppImage. [Install guide](https://owlaso.github.io/docs/#install).
+
+</details>
+
+<details>
+<summary><b>Does rank history update by itself?</b></summary>
+
+History is recorded whenever you analyze a keyword — one snapshot per day per keyword, store, country and language. Re-analyze your keywords on different days and the trend arrows and charts fill in.
+
+</details>
+
+<details>
+<summary><b>Will the stores block me?</b></summary>
+
+Normal use is fine. OwlASO caches results, merges duplicate requests and backs off when a store says "slow down" (it honours `Retry-After`). Hammering the stores with huge batches can still get you throttled for a while.
+
+</details>
+
+## ⭐ Star history
+
+<a href="https://star-history.com/#owlaso/owlaso&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=owlaso/owlaso&type=Date&theme=dark" />
+    <img alt="Star history chart" src="https://api.star-history.com/svg?repos=owlaso/owlaso&type=Date" width="100%" />
+  </picture>
+</a>
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome.
+
+1. [Fork the repo](https://github.com/owlaso/owlaso/fork) and create a branch: `git checkout -b my-change`
+2. Make your change. Keep it local-first (no new external services without a toggle) and keep secrets out of the repo.
+3. Check it compiles: `npm run build`
+4. [Open a pull request](https://github.com/owlaso/owlaso/pulls) describing what changed and why.
+
+Found a bug or have an idea? [Open an issue](https://github.com/owlaso/owlaso/issues/new).
+
+## 📄 License
+
+[MIT](LICENSE) © 2026 [alpernae](https://github.com/alpernae)
+
+<div align="center">
+<br />
+<img src=".github/assets/logo.svg" width="48" alt="OwlASO logo" />
+<br />
+<sub><b>OwlASO</b> · Discover what users search for and grow your app 10x faster</sub>
+</div>
